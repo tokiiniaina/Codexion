@@ -11,7 +11,6 @@ void	free_simulation(t_simulation_data *simulation)
 int	init_simulation(t_simulation_data *simulation,
 		t_simulation_config *config)
 {
-
     simulation->config = config;
     simulation->coders = NULL;
     simulation->dongles = NULL;
@@ -40,7 +39,6 @@ int	init_simulation(t_simulation_data *simulation,
         free_simulation(simulation);
         return (1);
     }
-
     i = 0;
     while (i < config->number_of_coders)
     {
