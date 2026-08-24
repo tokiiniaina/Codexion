@@ -7,6 +7,12 @@
 # include <limits.h>
 # include <string.h>
 
+typedef struct s_compile_request
+{
+	int	coder_id;
+	int	deadline;
+	int	arrival_order;
+}	t_compile_request;
 
 typedef struct s_priority_queue
 {
@@ -15,12 +21,6 @@ typedef struct s_priority_queue
 	int			      capacity;
 }	t_priority_queue;
 
-typedef struct s_compile_request
-{
-	int	coder_id;
-	int	deadline;
-	int	arrival_order;
-}	t_compile_request;
 
 typedef enum e_scheduler
 {
@@ -66,6 +66,8 @@ int		parse_arguments(char **argv, t_simulation_config *config);
 int		init_simulation(t_simulation_data *simulation,
 			t_simulation_config *config);
 void	free_simulation(t_simulation_data *simulation);
-int		init_priority_queue(t_priority_queue *queeu, int capacity);
+int		init_priority_queue(t_priority_queue *queue, int capacity);
+int		push_request(t_priority_queue *queue,
+			t_compile_request request, t_scheduler scheduler);
 
 #endif

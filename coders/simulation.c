@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   simulation.c                                       :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: tokinira <tokinira@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/08/24 03:12:20 by tokinira          #+#    #+#             */
+/*   Updated: 2026/08/24 03:24:54 by tokinira         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 #include "codexion.h"
 
 void	free_simulation(t_simulation_data *simulation)
@@ -8,44 +20,40 @@ void	free_simulation(t_simulation_data *simulation)
 		free(simulation->dongles);
 }
 
-int	init_simulation(t_simulation_data *simulation,
-		t_simulation_config *config)
+int	init_simulation(t_simulation_data *simulation, t_simulation_config *config)
 {
-    simulation->config = config;
-    simulation->coders = NULL;
-    simulation->dongles = NULL;
-    simulation->finished_coders = 0;
+	int	i;
 
-    simulation->coders = malloc(
-        sizeof(t_coder_data) * config->number_of_coders);
-    if (!simulation->coders)
-        return (1);
-
-    int i;
-    i = 0;
-    while (i < config->number_of_coders)
-    {
-        simulation->coders[i].id = i;
-        simulation->coders[i].compile_count = 0;
-        simulation->coders[i].last_compile_start = 0;
-        simulation->coders[i].is_finished = 0;
-        i++;
-    }
-
-    simulation->dongles = malloc(
-	    sizeof(t_dongle_data) * config->number_of_coders);
-    if (!simulation->dongles)
+	simulation->config = config;
+	simulation->coders = NULL;
+	simulation->dongles = NULL;
+	simulation->finished_coders = 0;
+	simulation->coders = malloc(sizeof(t_coder_data)
+			* config->number_of_coders);
+	if (!simulation->coders)
+		return (1);
+	i = 0;
+	while (i < config->number_of_coders)
 	{
-        free_simulation(simulation);
-        return (1);
-    }
-    i = 0;
-    while (i < config->number_of_coders)
-    {
-        simulation->dongles[i].id = i;
-        simulation->dongles[i].is_available = 1;
-        i++;
-    }    
-    
-    return (0);
+		simulation->coders[i].id = i;
+		simulation->coders[i].compile_count = 0;
+		simulation->coders[i].last_compile_start = 0;
+		simulation->coders[i].is_finished = 0;
+		i++;
+	}
+	simulation->dongles = malloc(sizeof(t_dongle_data)
+			* config->number_of_coders);
+	if (!simulation->dongles)
+	{
+		free_simulation(simulation);
+		return (1);
+	}
+	i = 0;
+	while (i < config->number_of_coders)
+	{
+		simulation->dongles[i].id = i;
+		simulation->dongles[i].is_available = 1;
+		i++;
+	}
+	return (0);
 }
