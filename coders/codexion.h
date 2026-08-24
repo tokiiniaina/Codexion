@@ -69,5 +69,9 @@ void	free_simulation(t_simulation_data *simulation);
 int		init_priority_queue(t_priority_queue *queue, int capacity);
 int		push_request(t_priority_queue *queue,
 			t_compile_request request, t_scheduler scheduler);
+int 	pop_request(t_priority_queue *queue, t_compile_request *request,
+			t_scheduler scheduler);
+static void	heapify_down(t_priority_queue *queue, int index,
+		t_scheduler scheduler);
 
 #endif
