@@ -1,0 +1,24 @@
+# Executables & Compilation Artifacts
+codexion
+*.o
+*.a
+*.so
+*.dylib
+*.out
+
+# Temporary and Swap Files
+*.swp
+*.swo
+*~
+.#*
+
+# System & OS Files
+.DS_Store
+Thumbs.db
+
+# Test outputs & logs
+*.log
+
+# IDE & Editor Configurations
+.vscode/
+.idea/

@@ -6,6 +6,7 @@
 # include <pthread.h>
 # include <limits.h>
 # include <string.h>
+# include <sys/time.h>
 
 typedef struct s_compile_request
 {
@@ -16,11 +17,10 @@ typedef struct s_compile_request
 
 typedef struct s_priority_queue
 {
-	t_compile_request *requests;
-	int				  size;
-	int			      capacity;
+	t_compile_request	*requests;
+	int					size;
+	int					capacity;
 }	t_priority_queue;
-
 
 typedef enum e_scheduler
 {
@@ -56,22 +56,25 @@ typedef struct s_dongle_data
 
 typedef struct s_simulation_data
 {
-	t_simulation_config		*config;
+	t_simulation_config	*config;
 	t_coder_data			*coders;
 	t_dongle_data			*dongles;
 	int						finished_coders;
 }	t_simulation_data;
 
+int		parse_positive_number(char *value, int *result);
 int		parse_arguments(char **argv, t_simulation_config *config);
+
 int		init_simulation(t_simulation_data *simulation,
 			t_simulation_config *config);
 void	free_simulation(t_simulation_data *simulation);
+
 int		init_priority_queue(t_priority_queue *queue, int capacity);
 int		push_request(t_priority_queue *queue,
 			t_compile_request request, t_scheduler scheduler);
-int 	pop_request(t_priority_queue *queue, t_compile_request *request,
+int		pop_request(t_priority_queue *queue, t_compile_request *request,
 			t_scheduler scheduler);
-static void	heapify_down(t_priority_queue *queue, int index,
-		t_scheduler scheduler);
+
+long	get_time_ms(void);
 
 #endif
