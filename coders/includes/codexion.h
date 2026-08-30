@@ -50,13 +50,14 @@ typedef struct s_coder_data
 
 typedef struct s_dongle_data
 {
-	int	id;
-	int	is_available;
+	int				id;
+	int				is_available;
+	pthread_mutex_t mutex;
 }	t_dongle_data;
 
 typedef struct s_simulation_data
 {
-	t_simulation_config	*config;
+	t_simulation_config		*config;
 	t_coder_data			*coders;
 	t_dongle_data			*dongles;
 	int						finished_coders;

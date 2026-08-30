@@ -1,5 +1,6 @@
 #include "codexion.h"
 
+
 int	parse_positive_number(char *value, int *result)
 {
 	int	i;
@@ -22,6 +23,7 @@ int	parse_positive_number(char *value, int *result)
 	return (0);
 }
 
+
 static int	parse_scheduler(char *value, t_scheduler *scheduler)
 {
 	if (strcmp(value, "fifo") == 0)
@@ -32,6 +34,7 @@ static int	parse_scheduler(char *value, t_scheduler *scheduler)
 		return (1);
 	return (0);
 }
+
 
 static int	parse_config_numbers(char **argv, t_simulation_config *config)
 {
@@ -51,6 +54,7 @@ static int	parse_config_numbers(char **argv, t_simulation_config *config)
 		return (1);
 	return (0);
 }
+
 
 int	parse_arguments(char **argv, t_simulation_config *config)
 {
