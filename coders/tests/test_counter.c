@@ -27,8 +27,6 @@ void	*increment_counter(void *arg)
 
 int	main(void)
 {
-	// int				counter;
-	// pthread_mutex_t	mutex;
 	t_shared_data	data;
 	pthread_t		thread_1;
 	pthread_t		thread_2;
