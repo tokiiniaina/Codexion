@@ -1,12 +1,13 @@
 #ifndef CODEXION_H
 # define CODEXION_H
 
-# include <stdio.h>
-# include <stdlib.h>
-# include <pthread.h>
-# include <limits.h>
-# include <string.h>
-# include <sys/time.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <limits.h>
+#include <string.h>
+#include <sys/time.h>
 
 typedef struct s_compile_request
 {
@@ -40,6 +41,7 @@ typedef struct s_simulation_config
 	t_scheduler	scheduler;
 }	t_simulation_config;
 
+
 typedef struct s_coder_data
 {
 	int	id;
@@ -68,7 +70,7 @@ int		parse_arguments(char **argv, t_simulation_config *config);
 
 int		init_simulation(t_simulation_data *simulation,
 			t_simulation_config *config);
-void	free_simulation(t_simulation_data *simulation);
+void	free_simulation(t_simulation_data *simulation, int mutex_count);
 
 int		init_priority_queue(t_priority_queue *queue, int capacity);
 int		push_request(t_priority_queue *queue,

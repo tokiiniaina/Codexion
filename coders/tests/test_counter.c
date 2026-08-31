@@ -1,5 +1,6 @@
 #include "codexion.h"
 
+
 typedef struct s_shared_data
 {
 	int				counter;
@@ -21,7 +22,7 @@ void	*increment_counter(void *arg)
 		pthread_mutex_unlock(&data->mutex);
 		i++;
 	}
-	return (NULL);
+	return (0);
 }
 
 

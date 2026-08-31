@@ -1,15 +1,6 @@
 #include "codexion.h"
 
-void	free_simulation(t_simulation_data *simulation)
-{
-	if (simulation->coders)
-		free(simulation->coders);
-	if (simulation->dongles)
-		free(simulation->dongles);
-}
-
-
-static void	destroy_dongle_mutexes(t_dongle_data *dongles, int	count)
+static void	destroy_dongle_mutexes(t_dongle_data *dongles, int count)
 {
 	int	i;
 
@@ -21,8 +12,19 @@ static void	destroy_dongle_mutexes(t_dongle_data *dongles, int	count)
 	}
 }
 
+void	free_simulation(t_simulation_data *simulation, int mutex_count)
+{
+	if (simulation->dongles)
+	{
+		destroy_dongle_mutexes(simulation->dongles, mutex_count);
+		free(simulation->dongles);
+	}
+	if (simulation->coders)
+		free(simulation->coders);
+}
 
-int	init_simulation(t_simulation_data *simulation, t_simulation_config *config)
+int	init_simulation(t_simulation_data *simulation,
+		t_simulation_config *config)
 {
 	int	i;
 
@@ -37,7 +39,7 @@ int	init_simulation(t_simulation_data *simulation, t_simulation_config *config)
 	i = 0;
 	while (i < config->number_of_coders)
 	{
-		simulation->coders[i].id = 1;
+		simulation->coders[i].id = i;
 		simulation->coders[i].compile_count = 0;
 		simulation->coders[i].last_compile_start = 0;
 		simulation->coders[i].is_finished = 0;
@@ -47,7 +49,7 @@ int	init_simulation(t_simulation_data *simulation, t_simulation_config *config)
 			* config->number_of_coders);
 	if (!simulation->dongles)
 	{
-		free_simulation(simulation);
+		free_simulation(simulation, 0);
 		return (1);
 	}
 	i = 0;
@@ -55,10 +57,11 @@ int	init_simulation(t_simulation_data *simulation, t_simulation_config *config)
 	{
 		simulation->dongles[i].id = i;
 		simulation->dongles[i].is_available = 1;
-		if (pthread__mutex_init(&simulation->dongles[i].mutex, NULL) != 0)
+		if (pthread_mutex_init(&simulation->dongles[i].mutex, NULL) != 0)
 		{
 			destroy_dongle_mutexes(simulation->dongles, i);
-			free_simulation(simulation);
+			free_simulation(simulation, 0);
+			return (1);
 		}
 		i++;
 	}
