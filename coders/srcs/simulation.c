@@ -21,6 +21,8 @@ void	free_simulation(t_simulation_data *simulation, int mutex_count)
 	}
 	if (simulation->coders)
 		free(simulation->coders);
+	if (simulation->threads)
+		free(simulation->threads);
 }
 
 int	init_simulation(t_simulation_data *simulation,
@@ -31,11 +33,19 @@ int	init_simulation(t_simulation_data *simulation,
 	simulation->config = config;
 	simulation->coders = NULL;
 	simulation->dongles = NULL;
+	simulation->threads = NULL;
 	simulation->finished_coders = 0;
 	simulation->coders = malloc(sizeof(t_coder_data)
-			* config->number_of_coders);
+		* config->number_of_coders);
 	if (!simulation->coders)
 		return (1);
+	simulation->threads = malloc(sizeof(pthread_t)
+			* config->number_of_coders);
+	if (!simulation->threads)
+	{
+		free_simulation(simulation, 0);
+		return (1);
+	}
 	i = 0;
 	while (i < config->number_of_coders)
 	{
@@ -63,6 +73,36 @@ int	init_simulation(t_simulation_data *simulation,
 			free_simulation(simulation, 0);
 			return (1);
 		}
+		i++;
+	}
+	return (0);
+}
+
+static void	*coder_routine(void *arg)
+{
+	t_coder_data	*coder;
+
+	coder = (t_coder_data *)arg;
+	printf("Coder %d is running\n", coder->id);
+	return (NULL);
+}
+
+int	start_simulation(t_simulation_data *simulation)
+{
+	int	i;
+
+	i = 0;
+	while (i < simulation->config->number_of_coders)
+	{
+		if (pthread_create(&simulation->threads[i], NULL,
+				coder_routine, &simulation->coders[i]) != 0)
+			return (1);
+		i++;
+	}
+	i = 0;
+	while (i < simulation->config->number_of_coders)
+	{
+		pthread_join(simulation->threads[i], NULL);
 		i++;
 	}
 	return (0);

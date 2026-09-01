@@ -18,7 +18,7 @@ void	*thread_function(void *arg)
 	pthread_mutex_lock(&coder->first_dongle->mutex);
 	printf("Coder %d got dongle %d\n",
 		coder->id, coder->first_dongle->id);
-
+	usleep(100000);
 	printf("Coder %d wants dongle %d\n",
 		coder->id, coder->second_dongle->id);
 	pthread_mutex_lock(&coder->second_dongle->mutex);
@@ -60,8 +60,8 @@ int	main(void)
 	coder_0.second_dongle = &dongle_1;
 
 	coder_1.id = 1;
-	coder_1.first_dongle = &dongle_0;
-	coder_1.second_dongle = &dongle_1;
+	coder_1.first_dongle = &dongle_1;
+	coder_1.second_dongle = &dongle_0;
 
 	pthread_create(&thread_0, NULL, thread_function, &coder_0);
 	pthread_create(&thread_1, NULL, thread_function, &coder_1);

@@ -62,6 +62,7 @@ typedef struct s_simulation_data
 	t_simulation_config		*config;
 	t_coder_data			*coders;
 	t_dongle_data			*dongles;
+	pthread_t				*threads;
 	int						finished_coders;
 }	t_simulation_data;
 
@@ -70,6 +71,7 @@ int		parse_arguments(char **argv, t_simulation_config *config);
 
 int		init_simulation(t_simulation_data *simulation,
 			t_simulation_config *config);
+int		start_simulation(t_simulation_data *simulation);
 void	free_simulation(t_simulation_data *simulation, int mutex_count);
 
 int		init_priority_queue(t_priority_queue *queue, int capacity);

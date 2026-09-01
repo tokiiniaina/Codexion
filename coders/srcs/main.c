@@ -29,6 +29,13 @@ int	main(int argc, char **argv)
 		printf("Error: simulation initialization failed\n");
 		return (1);
 	}
+
+	if (start_simulation(&simulation))
+	{
+		printf("Error: simulation start failed\n");
+		free_simulation(&simulation, 0);
+		return (1);
+	}
 	int	i;
 	i = 0;
 	while (i < config.number_of_coders)
@@ -48,6 +55,6 @@ int	main(int argc, char **argv)
 			simulation.dongles[i].is_available);
 		i++;
 	}
-	free_simulation(&simulation);
+	free_simulation(&simulation, config.number_of_coders);
 	return (0);
 }
