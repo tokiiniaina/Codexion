@@ -66,6 +66,13 @@ typedef struct s_simulation_data
 	int						finished_coders;
 }	t_simulation_data;
 
+
+typedef struct s_coder_context
+{
+	t_coder_data		*coder;
+	t_simulation_data	*simulation;
+} t_coder_context;
+
 int		parse_positive_number(char *value, int *result);
 int		parse_arguments(char **argv, t_simulation_config *config);
 

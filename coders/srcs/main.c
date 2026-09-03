@@ -33,7 +33,7 @@ int	main(int argc, char **argv)
 	if (start_simulation(&simulation))
 	{
 		printf("Error: simulation start failed\n");
-		free_simulation(&simulation, 0);
+		free_simulation(&simulation, config.number_of_coders);
 		return (1);
 	}
 	int	i;

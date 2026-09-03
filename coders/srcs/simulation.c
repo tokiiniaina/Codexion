@@ -80,23 +80,58 @@ int	init_simulation(t_simulation_data *simulation,
 
 static void	*coder_routine(void *arg)
 {
+	t_coder_context	*context;
 	t_coder_data	*coder;
+	t_dongle_data	*dongles;
+	int				first;
+	int				second;
+	int				temp;
 
-	coder = (t_coder_data *)arg;
-	printf("Coder %d is running\n", coder->id);
+	context = (t_coder_context *)arg;
+	coder = context->coder;
+	dongles = context->simulation->dongles;
+	first = coder->id;
+	second = (coder->id + 1)
+		% context->simulation->config->number_of_coders;
+	if (first > second)
+	{
+		temp = first;
+		first = second;
+		second = temp;
+	}
+	printf("Coder %d wants dongles %d and %d\n",
+		coder->id, first, second);
+	pthread_mutex_lock(&dongles[first].mutex);
+	printf("Coder %d got dongle %d\n", coder->id, first);
+	pthread_mutex_lock(&dongles[second].mutex);
+	printf("Coder %d got dongle %d\n", coder->id, second);
+	usleep(context->simulation->config->time_to_compile * 1000);
+	printf("Coder %d is using both dongles\n", coder->id);
+	pthread_mutex_unlock(&dongles[second].mutex);
+	pthread_mutex_unlock(&dongles[first].mutex);
 	return (NULL);
 }
 
 int	start_simulation(t_simulation_data *simulation)
 {
-	int	i;
+	t_coder_context	*contexts;
+	int				i;
 
+	contexts = malloc(sizeof(t_coder_context)
+			* simulation->config->number_of_coders);
+	if (!contexts)
+		return (1);
 	i = 0;
 	while (i < simulation->config->number_of_coders)
 	{
+		contexts[i].coder = &simulation->coders[i];
+		contexts[i].simulation = simulation;
 		if (pthread_create(&simulation->threads[i], NULL,
-				coder_routine, &simulation->coders[i]) != 0)
+				coder_routine, &contexts[i]) != 0)
+		{
+			free(contexts);
 			return (1);
+		}
 		i++;
 	}
 	i = 0;
@@ -105,5 +140,6 @@ int	start_simulation(t_simulation_data *simulation)
 		pthread_join(simulation->threads[i], NULL);
 		i++;
 	}
+	free(contexts);
 	return (0);
 }
