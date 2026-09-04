@@ -99,16 +99,21 @@ static void	*coder_routine(void *arg)
 		first = second;
 		second = temp;
 	}
-	printf("Coder %d wants dongles %d and %d\n",
-		coder->id, first, second);
-	pthread_mutex_lock(&dongles[first].mutex);
-	printf("Coder %d got dongle %d\n", coder->id, first);
-	pthread_mutex_lock(&dongles[second].mutex);
-	printf("Coder %d got dongle %d\n", coder->id, second);
-	usleep(context->simulation->config->time_to_compile * 1000);
-	printf("Coder %d is using both dongles\n", coder->id);
-	pthread_mutex_unlock(&dongles[second].mutex);
-	pthread_mutex_unlock(&dongles[first].mutex);
+	while (coder->compile_count
+		< context->simulation->config->number_of_compiles_required)
+	{
+		printf("Coder %d wants dongles %d and %d\n",
+			coder->id, first, second);
+		pthread_mutex_lock(&dongles[first].mutex);
+		printf("Coder %d got dongle %d\n", coder->id, first);
+		pthread_mutex_lock(&dongles[second].mutex);
+		printf("Coder %d got dongle %d\n", coder->id, second);
+		usleep(context->simulation->config->time_to_compile * 1000);
+		coder->compile_count++;
+		printf("Coder %d is using both dongles\n", coder->id);
+		pthread_mutex_unlock(&dongles[second].mutex);
+		pthread_mutex_unlock(&dongles[first].mutex);
+	}
 	return (NULL);
 }
 
