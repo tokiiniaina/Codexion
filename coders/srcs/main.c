@@ -40,7 +40,7 @@ int	main(int argc, char **argv)
 	i = 0;
 	while (i < config.number_of_coders)
 	{
-		printf("coder %d: count=%d, last=%d, finished=%d\n",
+		printf("coder %d: count=%d, last=%ld, finished=%d\n",
 			simulation.coders[i].id,
 			simulation.coders[i].compile_count,
 			simulation.coders[i].last_compile_start,
