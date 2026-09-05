@@ -52,9 +52,12 @@ typedef struct s_coder_data
 
 typedef struct s_dongle_data
 {
-	int				id;
-	int				is_available;
-	pthread_mutex_t mutex;
+	int					id;
+	int					is_available;
+	long				available_at;
+	pthread_mutex_t		mutex;
+	pthread_cond_t		cond;
+	t_priority_queue	queue;
 }	t_dongle_data;
 
 typedef struct s_simulation_data
@@ -64,6 +67,12 @@ typedef struct s_simulation_data
 	t_dongle_data			*dongles;
 	pthread_t				*threads;
 	int						finished_coders;
+	pthread_t               monitor_thread;
+	pthread_mutex_t			state_mutex;
+	pthread_mutex_t			log_mutex;
+	int						stop_simulation;
+	int						request_counter;
+	long					start_time;
 }	t_simulation_data;
 
 
