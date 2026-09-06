@@ -1,6 +1,20 @@
 #include "codexion.h"
 
-static int	is_simulation_stopped(t_simulation_data *simulation)
+
+static	void destroy_coder_conditions(t_coder_data *coders, int count)
+{
+	int	i;
+
+	i = 0;
+	while (i < count)
+	{
+		pthread_cond_destroy(&coders[i].cond);
+		i++;
+	}
+}
+
+
+static	int	is_simulation_stopped(t_simulation_data *simulation)
 {
 	int	stopped;
 
@@ -22,16 +36,28 @@ static void	destroy_dongle_mutexes(t_dongle_data *dongles, int count)
 	}
 }
 
-void	free_simulation(t_simulation_data *simulation, int mutex_count)
+void	free_simulation(t_simulation_data *simulation, int mutex_count,
+			int	cond_count)
 {
+	if (simulation->coders)
+	{
+		destroy_coder_conditions(simulation->coders, cond_count);
+		free(simulation->coders);
+	}
+
+	pthread_cond_destroy(&simulation->queue_cond);
+	pthread_mutex_destroy(&simulation->queue_mutex);
 	pthread_mutex_destroy(&simulation->state_mutex);
+
+	if (simulation->queue.requests)
+		free(simulation->queue.requests);
+
 	if (simulation->dongles)
 	{
 		destroy_dongle_mutexes(simulation->dongles, mutex_count);
 		free(simulation->dongles);
 	}
-	if (simulation->coders)
-		free(simulation->coders);
+
 	if (simulation->threads)
 		free(simulation->threads);
 }
@@ -40,7 +66,9 @@ int	init_simulation(t_simulation_data *simulation,
 		t_simulation_config *config)
 {
 	int	i;
+	int	cond_count;
 
+	cond_count = 0;
 	simulation->stop_simulation = 0;
 	simulation->start_time = 0;
 	simulation->config = config;
@@ -48,20 +76,44 @@ int	init_simulation(t_simulation_data *simulation,
 	simulation->dongles = NULL;
 	simulation->threads = NULL;
 	simulation->finished_coders = 0;
+	simulation->scheduler_thread = 0;
+	simulation->queue.requests = NULL;
+	simulation->queue.size = 0;
+	simulation->queue.capacity = 0;
+
 	if (pthread_mutex_init(&simulation->state_mutex, NULL) != 0)
 		return (1);
+	if (pthread_mutex_init(&simulation->queue_mutex, NULL) != 0)
+	{
+		pthread_mutex_destroy(&simulation->state_mutex);
+		return (1);
+	}
+	if (pthread_cond_init(&simulation->queue_cond, NULL) != 0)
+	{
+		pthread_mutex_destroy(&simulation->queue_mutex);
+		pthread_mutex_destroy(&simulation->state_mutex);
+		return (1);
+	}
+	if (init_priority_queue(&simulation->queue,
+			config->number_of_coders) != 0)
+	{
+		pthread_cond_destroy(&simulation->queue_cond);
+		pthread_mutex_destroy(&simulation->queue_mutex);
+		pthread_mutex_destroy(&simulation->state_mutex);
+		return (1);
+	}
 	simulation->coders = malloc(sizeof(t_coder_data)
 			* config->number_of_coders);
 	if (!simulation->coders)
 	{
-		pthread_mutex_destroy(&simulation->state_mutex);
+		free_simulation(simulation, 0, cond_count);
 		return (1);
 	}
 	simulation->threads = malloc(sizeof(pthread_t)
 			* config->number_of_coders);
 	if (!simulation->threads)
 	{
-		free_simulation(simulation, 0);
+		free_simulation(simulation, 0, cond_count);
 		return (1);
 	}
 	i = 0;
@@ -71,13 +123,20 @@ int	init_simulation(t_simulation_data *simulation,
 		simulation->coders[i].compile_count = 0;
 		simulation->coders[i].last_compile_start = 0;
 		simulation->coders[i].is_finished = 0;
+		simulation->coders[i].has_permission = 0;
+		if (pthread_cond_init(&simulation->coders[i].cond, NULL) != 0)
+		{
+			free_simulation(simulation, 0, cond_count);
+			return (1);
+		}
+		cond_count++;
 		i++;
 	}
 	simulation->dongles = malloc(sizeof(t_dongle_data)
 			* config->number_of_coders);
 	if (!simulation->dongles)
 	{
-		free_simulation(simulation, 0);
+		free_simulation(simulation, 0, cond_count);
 		return (1);
 	}
 	i = 0;
@@ -88,7 +147,7 @@ int	init_simulation(t_simulation_data *simulation,
 		if (pthread_mutex_init(&simulation->dongles[i].mutex, NULL) != 0)
 		{
 			destroy_dongle_mutexes(simulation->dongles, i);
-			free_simulation(simulation, 0);
+			free_simulation(simulation, 0, cond_count);
 			return (1);
 		}
 		i++;

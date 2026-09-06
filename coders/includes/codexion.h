@@ -43,10 +43,13 @@ typedef struct s_simulation_config
 
 typedef struct s_coder_data
 {
-	int		id;
-	int		compile_count;
-	long	last_compile_start;
-	int		is_finished;
+	int				id;
+	int				compile_count;
+	long			last_compile_start;
+	int				is_finished;
+
+	pthread_cond_t	cond;
+	int				has_permission;	
 }	t_coder_data;
 
 typedef struct s_dongle_data
@@ -62,11 +65,20 @@ typedef struct s_simulation_data
 	t_coder_data		*coders;
 	t_dongle_data		*dongles;
 	pthread_t			*threads;
+
 	int					finished_coders;
 	pthread_t			monitor_thread;
+
 	pthread_mutex_t		state_mutex;
+
 	int					stop_simulation;
 	long				start_time;
+
+	t_priority_queue	queue;
+	pthread_mutex_t		queue_mutex;
+	pthread_cond_t		queue_cond;
+
+	pthread_t			scheduler_thread;
 }	t_simulation_data;
 
 typedef struct s_coder_context
@@ -81,7 +93,8 @@ int		parse_arguments(char **argv, t_simulation_config *config);
 int		init_simulation(t_simulation_data *simulation,
 			t_simulation_config *config);
 int		start_simulation(t_simulation_data *simulation);
-void	free_simulation(t_simulation_data *simulation, int mutex_count);
+void	free_simulation(t_simulation_data *simulation,
+			int mutex_count, int cond_count);
 
 int		init_priority_queue(t_priority_queue *queue, int capacity);
 int		push_request(t_priority_queue *queue,
