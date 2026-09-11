@@ -56,6 +56,7 @@ typedef struct s_dongle_data
 {
 	int				id;
 	int				is_available;
+	int				available_at;
 	pthread_mutex_t	mutex;
 }	t_dongle_data;
 
@@ -79,6 +80,8 @@ typedef struct s_simulation_data
 	pthread_cond_t		queue_cond;
 
 	pthread_t			scheduler_thread;
+
+	int					request_counter;
 }	t_simulation_data;
 
 typedef struct s_coder_context
@@ -101,6 +104,8 @@ int		push_request(t_priority_queue *queue,
 			t_compile_request request, t_scheduler scheduler);
 int		pop_request(t_priority_queue *queue,
 			t_compile_request *request, t_scheduler scheduler);
+int		peek_request(t_priority_queue *queue,
+		t_compile_request *request);
 
 long	get_time_ms(void);
 
