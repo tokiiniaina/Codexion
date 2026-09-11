@@ -82,6 +82,8 @@ typedef struct s_simulation_data
 	pthread_t			scheduler_thread;
 
 	int					request_counter;
+
+	pthread_mutex_t		log_mutex;
 }	t_simulation_data;
 
 typedef struct s_coder_context

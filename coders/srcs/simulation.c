@@ -55,6 +55,7 @@ void	free_simulation(t_simulation_data *simulation, int mutex_count,
 	pthread_cond_destroy(&simulation->queue_cond);
 	pthread_mutex_destroy(&simulation->queue_mutex);
 	pthread_mutex_destroy(&simulation->state_mutex);
+	pthread_mutex_destroy(&simulation->log_mutex);
 	if (simulation->queue.requests)
 		free(simulation->queue.requests);
 	if (simulation->dongles)
@@ -86,17 +87,24 @@ int	init_simulation(t_simulation_data *simulation,
 	simulation->queue.size = 0;
 	simulation->queue.capacity = 0;
 
-	if (pthread_mutex_init(&simulation->state_mutex, NULL) != 0)
+	if (pthread_mutex_init(&simulation->log_mutex, NULL) != 0)
 		return (1);
+	if (pthread_mutex_init(&simulation->state_mutex, NULL) != 0)
+	{
+		pthread_mutex_destroy(&simulation->log_mutex);
+		return (1);
+	}
 	if (pthread_mutex_init(&simulation->queue_mutex, NULL) != 0)
 	{
 		pthread_mutex_destroy(&simulation->state_mutex);
+		pthread_mutex_destroy(&simulation->log_mutex);
 		return (1);
 	}
 	if (pthread_cond_init(&simulation->queue_cond, NULL) != 0)
 	{
 		pthread_mutex_destroy(&simulation->queue_mutex);
 		pthread_mutex_destroy(&simulation->state_mutex);
+		pthread_mutex_destroy(&simulation->log_mutex);
 		return (1);
 	}
 	if (init_priority_queue(&simulation->queue,
@@ -105,6 +113,7 @@ int	init_simulation(t_simulation_data *simulation,
 		pthread_cond_destroy(&simulation->queue_cond);
 		pthread_mutex_destroy(&simulation->queue_mutex);
 		pthread_mutex_destroy(&simulation->state_mutex);
+		pthread_mutex_destroy(&simulation->log_mutex);
 		return (1);
 	}
 	simulation->coders = malloc(sizeof(t_coder_data)
@@ -265,6 +274,17 @@ static int	reserve_dongles(t_simulation_data *simulation,
 }
 
 
+static void	log_event(t_simulation_data *simulation, int coder_id,
+		char *message)
+{
+	long	timestamp;
+
+	timestamp = get_time_ms() - simulation->start_time;
+	pthread_mutex_lock(&simulation->log_mutex);
+	printf("%ld %d %s\n", timestamp, coder_id + 1, message);
+	pthread_mutex_unlock(&simulation->log_mutex);
+}
+
 static void	*scheduler_routine(void *arg)
 {
 	t_simulation_data	*simulation;
@@ -278,7 +298,6 @@ static void	*scheduler_routine(void *arg)
 	while (!is_simulation_stopped(simulation))
 	{
 		pthread_mutex_lock(&simulation->queue_mutex);
-		// pthread_mutex_lock(&simulation->queue_mutex);
 		while (simulation->queue.size == 0)
 		{
 			pthread_cond_wait(&simulation->queue_cond,
@@ -295,8 +314,6 @@ static void	*scheduler_routine(void *arg)
 		}
 		get_coder_dongles(simulation, request.coder_id,
 			&first, &second);
-		// printf("Scheduler: coder %d, arrival_order=%d\n",
-		// 	request.coder_id, request.arrival_order);
 		if (!reserve_dongles(simulation, first, second))
 		{
 			pthread_mutex_unlock(&simulation->queue_mutex);
@@ -369,25 +386,20 @@ static void	*coder_routine(void *arg)
 		coder->has_permission = 0;
 		pthread_mutex_unlock(&context->simulation->state_mutex);
 
-		printf("Coder %d wants dongles %d", coder->id, first);
-		if (second != -1)
-			printf(" and %d", second);
-		printf("\n");
-
 		pthread_mutex_lock(&dongles[first].mutex);
-		printf("Coder %d got dongle %d\n", coder->id, first);
+		log_event(context->simulation, coder->id, "has taken a dongle");
 
 		if (second != -1)
 		{
 			pthread_mutex_lock(&dongles[second].mutex);
-			printf("Coder %d got dongle %d\n", coder->id, second);
+			log_event(context->simulation, coder->id, "has taken a dongle");
 		}
 
 		pthread_mutex_lock(&context->simulation->state_mutex);
 		coder->last_compile_start = get_time_ms();
 		pthread_mutex_unlock(&context->simulation->state_mutex);
 
-		printf("Coder %d is compiling\n", coder->id);
+		log_event(context->simulation, coder->id, "is compiling");
 		usleep(context->simulation->config->time_to_compile * 1000);
 
 
@@ -397,11 +409,11 @@ static void	*coder_routine(void *arg)
 		unlock_dongle(&dongles[first],
 			context->simulation->config->dongle_cooldown);
 
-		printf("Coder %d is debugging\n", coder->id);
+		log_event(context->simulation, coder->id, "is debugging");
 		usleep(context->simulation->config->time_to_debug * 1000);
 
 
-		printf("Coder %d is refactoring\n", coder->id);
+		log_event(context->simulation, coder->id, "is refactoring");
 		usleep(context->simulation->config->time_to_refactor * 1000);
 
 		pthread_mutex_lock(&context->simulation->state_mutex);
@@ -479,7 +491,7 @@ static void	*monitor_routine(void *arg)
 				pthread_mutex_lock(&simulation->queue_mutex);
 				pthread_cond_broadcast(&simulation->queue_cond);
 				pthread_mutex_unlock(&simulation->queue_mutex);
-				printf("Coder %d burned out\n", simulation->coders[i].id);
+				log_event(simulation, simulation->coders[i].id, "burned out");
 				return (NULL);
 			}
 			i++;

@@ -6,7 +6,11 @@ static int	compare_requests(t_compile_request *first,
 	if (scheduler == SCHEDULER_FIFO)
 		return (first->arrival_order < second->arrival_order);
 	if (scheduler == SCHEDULER_EDF)
-		return (first->deadline < second->deadline);
+	{
+		if (first->deadline != second->deadline)
+			return (first->deadline < second->deadline);
+		return (first->arrival_order < second->arrival_order);
+	}
 	return (0);
 }
 
