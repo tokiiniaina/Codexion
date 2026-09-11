@@ -56,7 +56,8 @@ typedef struct s_dongle_data
 {
 	int				id;
 	int				is_available;
-	int				available_at;
+	int				is_reserved;
+	long			available_at;
 	pthread_mutex_t	mutex;
 }	t_dongle_data;
 

@@ -159,6 +159,7 @@ int	init_simulation(t_simulation_data *simulation,
 		simulation->dongles[i].id = i;
 		simulation->dongles[i].is_available = 1;
 		simulation->dongles[i].available_at = 0;
+		simulation->dongles[i].is_reserved = 0;
 		if (pthread_mutex_init(&simulation->dongles[i].mutex, NULL) != 0)
 		{
 			destroy_dongle_mutexes(simulation->dongles, i);
@@ -185,18 +186,33 @@ static void	mark_coder_finished(t_simulation_data *simulation,
 static void unlock_dongle(t_dongle_data *dongle, int cooldown)
 {
 	dongle->is_available = 0;
+	dongle->is_reserved = 0;
 	dongle->available_at = get_time_ms() + cooldown;
 	pthread_mutex_unlock(&dongle->mutex);
 }
 
+static int get_compile_count(t_simulation_data *simulation,
+		t_coder_data *coder)
+{
+	int	compile_count;
+
+	pthread_mutex_lock(&simulation->state_mutex);
+	compile_count = coder->compile_count;
+	pthread_mutex_unlock(&simulation->state_mutex);
+	return (compile_count);
+}
 
 static int enqueue_compile_request(t_coder_data *coder, 
 	t_simulation_data *simulation)
 {
 	t_compile_request	request;
+	long				last_compile_start;
 
+	pthread_mutex_lock(&simulation->state_mutex);
+	last_compile_start = coder->last_compile_start;
+	pthread_mutex_unlock(&simulation->state_mutex);
 	request.coder_id = coder->id;
-	request.deadline = coder->last_compile_start
+	request.deadline = last_compile_start
 		+ simulation->config->time_to_burnout;
 
 	pthread_mutex_lock(&simulation->queue_mutex);
@@ -237,12 +253,18 @@ static void	get_coder_dongles(t_simulation_data *simulation,
 
 
 static int	reserve_dongles(t_simulation_data *simulation,
-		int first, int second)
+				int first, int second)
 {
 	long	current_time;
 
 	current_time = get_time_ms();
+
 	pthread_mutex_lock(&simulation->dongles[first].mutex);
+	if (simulation->dongles[first].is_reserved)
+	{
+		pthread_mutex_unlock(&simulation->dongles[first].mutex);
+		return (0);
+	}
 	if (!simulation->dongles[first].is_available)
 	{
 		if (current_time < simulation->dongles[first].available_at)
@@ -252,24 +274,39 @@ static int	reserve_dongles(t_simulation_data *simulation,
 		}
 		simulation->dongles[first].is_available = 1;
 	}
+	simulation->dongles[first].is_reserved = 1;
+	simulation->dongles[first].is_available = 0;
+	pthread_mutex_unlock(&simulation->dongles[first].mutex);
+
 	if (second != -1)
 	{
 		pthread_mutex_lock(&simulation->dongles[second].mutex);
+		if (simulation->dongles[second].is_reserved)
+		{
+			pthread_mutex_unlock(&simulation->dongles[second].mutex);
+			pthread_mutex_lock(&simulation->dongles[first].mutex);
+			simulation->dongles[first].is_reserved = 0;
+			simulation->dongles[first].is_available = 1;
+			pthread_mutex_unlock(&simulation->dongles[first].mutex);
+			return (0);
+		}
 		if (!simulation->dongles[second].is_available)
 		{
 			if (current_time < simulation->dongles[second].available_at)
 			{
 				pthread_mutex_unlock(&simulation->dongles[second].mutex);
+				pthread_mutex_lock(&simulation->dongles[first].mutex);
+				simulation->dongles[first].is_reserved = 0;
+				simulation->dongles[first].is_available = 1;
 				pthread_mutex_unlock(&simulation->dongles[first].mutex);
 				return (0);
 			}
 			simulation->dongles[second].is_available = 1;
 		}
+		simulation->dongles[second].is_reserved = 1;
 		simulation->dongles[second].is_available = 0;
 		pthread_mutex_unlock(&simulation->dongles[second].mutex);
 	}
-	simulation->dongles[first].is_available = 0;
-	pthread_mutex_unlock(&simulation->dongles[first].mutex);
 	return (1);
 }
 
@@ -285,55 +322,113 @@ static void	log_event(t_simulation_data *simulation, int coder_id,
 	pthread_mutex_unlock(&simulation->log_mutex);
 }
 
+static void	grant_permission(t_simulation_data *simulation, int coder_id)
+{
+	t_coder_data	*coder;
+
+	coder = &simulation->coders[coder_id];
+	pthread_mutex_lock(&simulation->state_mutex);
+	if (!simulation->stop_simulation)
+	{
+		coder->last_compile_start = get_time_ms();
+		coder->has_permission = 1;
+		pthread_cond_signal(&coder->cond);
+	}
+	pthread_mutex_unlock(&simulation->state_mutex);
+}
+
+static int	try_dispatch_request(t_simulation_data *simulation,
+		t_compile_request *request)
+{
+	int	first;
+	int	second;
+
+	get_coder_dongles(simulation, request->coder_id, &first, &second);
+	if (!reserve_dongles(simulation, first, second))
+		return (0);
+	grant_permission(simulation, request->coder_id);
+	return (1);
+}
+
+static int	drain_queue(t_simulation_data *simulation,
+		t_compile_request *pending)
+{
+	int					count;
+	t_compile_request	request;
+
+	count = 0;
+	while (pop_request(&simulation->queue, &request,
+			simulation->config->scheduler) == 0)
+	{
+		pending[count] = request;
+		count++;
+	}
+	return (count);
+}
+
+static int	dispatch_pending(t_simulation_data *simulation,
+		t_compile_request *pending, int pending_count)
+{
+	int	i;
+	int	dispatched;
+
+	i = 0;
+	dispatched = 0;
+	while (i < pending_count)
+	{
+		if (try_dispatch_request(simulation, &pending[i]))
+			dispatched++;
+		else
+		{
+			pthread_mutex_lock(&simulation->queue_mutex);
+			push_request(&simulation->queue, pending[i],
+				simulation->config->scheduler);
+			pthread_mutex_unlock(&simulation->queue_mutex);
+		}
+		i++;
+	}
+	return (dispatched);
+}
+
+static int	wait_for_queue(t_simulation_data *simulation)
+{
+	pthread_mutex_lock(&simulation->queue_mutex);
+	while (simulation->queue.size == 0)
+	{
+		if (is_simulation_stopped(simulation))
+		{
+			pthread_mutex_unlock(&simulation->queue_mutex);
+			return (1);
+		}
+		pthread_cond_wait(&simulation->queue_cond,
+			&simulation->queue_mutex);
+	}
+	return (0);
+}
+
 static void	*scheduler_routine(void *arg)
 {
 	t_simulation_data	*simulation;
-	t_compile_request	request;
-	t_coder_data		*coder;
-
-	int					first;
-	int					second;
+	t_compile_request	*pending;
+	int					pending_count;
+	int					dispatched;
 
 	simulation = (t_simulation_data *)arg;
+	pending = malloc(sizeof(t_compile_request)
+			* simulation->config->number_of_coders);
+	if (!pending)
+		return (NULL);
 	while (!is_simulation_stopped(simulation))
 	{
-		pthread_mutex_lock(&simulation->queue_mutex);
-		while (simulation->queue.size == 0)
-		{
-			pthread_cond_wait(&simulation->queue_cond,
-				&simulation->queue_mutex);
-			pthread_mutex_unlock(&simulation->queue_mutex);
-			if (is_simulation_stopped(simulation))
-				return (NULL);
-			pthread_mutex_lock(&simulation->queue_mutex);
-		}
-		if (peek_request(&simulation->queue, &request) != 0)
-		{
-			pthread_mutex_unlock(&simulation->queue_mutex);
-			continue ;
-		}
-		get_coder_dongles(simulation, request.coder_id,
-			&first, &second);
-		if (!reserve_dongles(simulation, first, second))
-		{
-			pthread_mutex_unlock(&simulation->queue_mutex);
-			usleep(1000);
-			continue ;
-		}
-		pop_request(&simulation->queue, &request,
-			simulation->config->scheduler);
+		if (wait_for_queue(simulation))
+			break ;
+		pending_count = drain_queue(simulation, pending);
 		pthread_mutex_unlock(&simulation->queue_mutex);
-
-		coder = &simulation->coders[request.coder_id];
-		pthread_mutex_lock(&simulation->state_mutex);
-		if (!simulation->stop_simulation)
-		{
-			coder->last_compile_start = get_time_ms();
-			coder->has_permission = 1;
-			pthread_cond_signal(&coder->cond);
-		}
-		pthread_mutex_unlock(&simulation->state_mutex);
+		dispatched = dispatch_pending(simulation, pending, pending_count);
+		if (dispatched < pending_count)
+			usleep(1000);
 	}
+	free(pending);
 	return (NULL);
 }
 
@@ -367,7 +462,7 @@ static void	*coder_routine(void *arg)
 	}
 
 	while (!is_simulation_stopped(context->simulation)
-		&& coder->compile_count
+		&& get_compile_count(context->simulation, coder)
 		< context->simulation->config->number_of_compiles_required)
 	{
 		if (enqueue_compile_request(coder, context->simulation) != 0)
@@ -394,6 +489,26 @@ static void	*coder_routine(void *arg)
 			pthread_mutex_lock(&dongles[second].mutex);
 			log_event(context->simulation, coder->id, "has taken a dongle");
 		}
+		else
+		{
+			/* Cas 1 codeur : un seul dongle sur la table, mais compiler
+			   en requiert deux. On ne peut jamais compiler : on attend
+			   ici que le moniteur detecte le burnout et stoppe la simu. */
+			while (!is_simulation_stopped(context->simulation))
+				usleep(1000);
+			unlock_dongle(&dongles[first],
+				context->simulation->config->dongle_cooldown);
+			return (NULL);
+		}
+		if (is_simulation_stopped(context->simulation))
+		{
+			if (second != -1)
+				unlock_dongle(&dongles[second],
+					context->simulation->config->dongle_cooldown);
+			unlock_dongle(&dongles[first],
+				context->simulation->config->dongle_cooldown);
+			return (NULL);
+		}
 
 		pthread_mutex_lock(&context->simulation->state_mutex);
 		coder->last_compile_start = get_time_ms();
@@ -409,13 +524,18 @@ static void	*coder_routine(void *arg)
 		unlock_dongle(&dongles[first],
 			context->simulation->config->dongle_cooldown);
 
+		if (is_simulation_stopped(context->simulation))
+			return (NULL);
 		log_event(context->simulation, coder->id, "is debugging");
 		usleep(context->simulation->config->time_to_debug * 1000);
 
-
+		if (is_simulation_stopped(context->simulation))
+			return (NULL);
 		log_event(context->simulation, coder->id, "is refactoring");
 		usleep(context->simulation->config->time_to_refactor * 1000);
 
+		if (is_simulation_stopped(context->simulation))
+			return (NULL);
 		pthread_mutex_lock(&context->simulation->state_mutex);
 		coder->compile_count++;
 		pthread_mutex_unlock(&context->simulation->state_mutex);
