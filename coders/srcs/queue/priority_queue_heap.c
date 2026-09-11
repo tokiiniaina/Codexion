@@ -1,6 +1,6 @@
 #include "codexion.h"
 
-static int	compare_requests(t_compile_request *first,
+int	compare_requests(t_compile_request *first,
 		t_compile_request *second, t_scheduler scheduler)
 {
 	if (scheduler == SCHEDULER_FIFO)
@@ -14,7 +14,7 @@ static int	compare_requests(t_compile_request *first,
 	return (0);
 }
 
-static void	heapify_up(t_priority_queue *queue, int index,
+void	heapify_up(t_priority_queue *queue, int index,
 		t_scheduler scheduler)
 {
 	int					parent_index;
@@ -33,7 +33,7 @@ static void	heapify_up(t_priority_queue *queue, int index,
 	}
 }
 
-static void	heapify_down(t_priority_queue *queue, int index,
+void	heapify_down(t_priority_queue *queue, int index,
 		t_scheduler scheduler)
 {
 	int					left_child;
@@ -60,37 +60,4 @@ static void	heapify_down(t_priority_queue *queue, int index,
 		queue->requests[best_child] = temp;
 		index = best_child;
 	}
-}
-
-int	init_priority_queue(t_priority_queue *queue, int capacity)
-{
-	queue->requests = malloc(sizeof(t_compile_request) * capacity);
-	if (!queue->requests)
-		return (1);
-	queue->size = 0;
-	queue->capacity = capacity;
-	return (0);
-}
-
-int	push_request(t_priority_queue *queue,
-		t_compile_request request, t_scheduler scheduler)
-{
-	if (queue->size >= queue->capacity)
-		return (1);
-	queue->requests[queue->size] = request;
-	queue->size++;
-	heapify_up(queue, queue->size - 1, scheduler);
-	return (0);
-}
-
-int	pop_request(t_priority_queue *queue,
-		t_compile_request *request, t_scheduler scheduler)
-{
-	if (queue->size == 0)
-		return (1);
-	*request = queue->requests[0];
-	queue->requests[0] = queue->requests[queue->size - 1];
-	queue->size--;
-	heapify_down(queue, 0, scheduler);
-	return (0);
 }

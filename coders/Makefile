@@ -8,7 +8,7 @@ SRCS_DIR = srcs
 OBJS_DIR = objs
 TESTS_DIR = tests
 
-SRCS = main.c parsing.c simulation.c priority_queue.c time.c
+SRCS = main.c parsing.c simulation.c queue/priority_queue.c queue/priority_queue_heap.c time.c init.c cleanup.c coder.c coder_actions.c dongle.c scheduler.c scheduler_dispatch.c monitor.c logging.c
 OBJS = $(addprefix $(OBJS_DIR)/, $(SRCS:.c=.o))
 
 
@@ -23,6 +23,7 @@ $(NAME): $(OBJS)
 	$(CC) $(CFLAGS) $(OBJS) -o $(NAME)
 
 $(OBJS_DIR)/%.o: $(SRCS_DIR)/%.c | $(OBJS_DIR)
+	mkdir -p $(@D)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 $(OBJS_DIR):
