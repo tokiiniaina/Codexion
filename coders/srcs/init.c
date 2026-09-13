@@ -19,7 +19,6 @@ int	init_simulation(t_simulation_data *simulation,
 	simulation->queue.requests = NULL;
 	simulation->queue.size = 0;
 	simulation->queue.capacity = 0;
-
 	if (pthread_mutex_init(&simulation->log_mutex, NULL) != 0)
 		return (1);
 	if (pthread_mutex_init(&simulation->state_mutex, NULL) != 0)

@@ -45,7 +45,6 @@ int	enqueue_compile_request(t_coder_data *coder,
 	request.coder_id = coder->id;
 	request.deadline = last_compile_start
 		+ simulation->config->time_to_burnout;
-
 	pthread_mutex_lock(&simulation->queue_mutex);
 	request.arrival_order = simulation->request_counter;
 	simulation->request_counter++;
@@ -67,7 +66,6 @@ int	start_simulation(t_simulation_data *simulation)
 	int				created_threads;
 
 	created_threads = 0;
-
 	contexts = malloc(sizeof(t_coder_context)
 			* simulation->config->number_of_coders);
 	if (!contexts)
@@ -86,7 +84,7 @@ int	start_simulation(t_simulation_data *simulation)
 		return (1);
 	}
 	if (pthread_create(&simulation->scheduler_thread, NULL,
-		scheduler_routine, simulation) != 0)
+			scheduler_routine, simulation) != 0)
 	{
 		pthread_mutex_lock(&simulation->state_mutex);
 		simulation->stop_simulation = 1;
@@ -97,8 +95,7 @@ int	start_simulation(t_simulation_data *simulation)
 		pthread_join(simulation->monitor_thread, NULL);
 		free(contexts);
 		return (1);
-	}	
-
+	}
 	i = 0;
 	while (i < simulation->config->number_of_coders)
 	{

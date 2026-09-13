@@ -25,7 +25,7 @@ void	heapify_up(t_priority_queue *queue, int index,
 		parent_index = (index - 1) / 2;
 		if (!compare_requests(&queue->requests[index],
 				&queue->requests[parent_index], scheduler))
-			break;
+			break ;
 		temp = queue->requests[index];
 		queue->requests[index] = queue->requests[parent_index];
 		queue->requests[parent_index] = temp;
@@ -54,7 +54,7 @@ void	heapify_down(t_priority_queue *queue, int index,
 			best_child = right_child;
 		if (!compare_requests(&queue->requests[best_child],
 				&queue->requests[index], scheduler))
-			break;
+			break ;
 		temp = queue->requests[index];
 		queue->requests[index] = queue->requests[best_child];
 		queue->requests[best_child] = temp;

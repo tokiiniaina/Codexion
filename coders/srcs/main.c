@@ -4,6 +4,7 @@ int	main(int argc, char **argv)
 {
 	t_simulation_config	config;
 	t_simulation_data	simulation;
+	int					i;
 
 	if (argc != 9)
 	{
@@ -23,21 +24,18 @@ int	main(int argc, char **argv)
 	printf("required: %d\n", config.number_of_compiles_required);
 	printf("cooldown: %d\n", config.dongle_cooldown);
 	printf("scheduler: %d\n", config.scheduler);
-
 	if (init_simulation(&simulation, &config))
 	{
 		printf("Error: simulation initialization failed\n");
 		return (1);
 	}
-
 	if (start_simulation(&simulation))
 	{
 		printf("Error: simulation start failed\n");
-		free_simulation(&simulation, config.number_of_coders
-			, config.number_of_coders);
+		free_simulation(&simulation, config.number_of_coders,
+			config.number_of_coders);
 		return (1);
 	}
-	int	i;
 	i = 0;
 	while (i < config.number_of_coders)
 	{

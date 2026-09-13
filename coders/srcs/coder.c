@@ -11,7 +11,6 @@ void	*coder_routine(void *arg)
 	context = (t_coder_context *)arg;
 	coder = context->coder;
 	first = coder->id;
-
 	if (context->simulation->config->number_of_coders == 1)
 		second = -1;
 	else
@@ -25,7 +24,6 @@ void	*coder_routine(void *arg)
 			second = temp;
 		}
 	}
-
 	while (!is_simulation_stopped(context->simulation)
 		&& get_compile_count(context->simulation, coder)
 		< context->simulation->config->number_of_compiles_required)

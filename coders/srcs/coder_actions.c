@@ -28,7 +28,6 @@ int	take_dongles(t_coder_context *context, int first, int second)
 	pthread_mutex_lock(&dongles[first].mutex);
 	log_event(context->simulation, context->coder->id,
 		"has taken a dongle");
-
 	if (second != -1)
 	{
 		pthread_mutex_lock(&dongles[second].mutex);
@@ -37,9 +36,6 @@ int	take_dongles(t_coder_context *context, int first, int second)
 	}
 	else
 	{
-		/* Cas 1 codeur : un seul dongle sur la table, mais compiler
-		   en requiert deux. On ne peut jamais compiler : on attend
-		   ici que le moniteur detecte le burnout et stoppe la simu. */
 		while (!is_simulation_stopped(context->simulation))
 			usleep(1000);
 		unlock_dongle(&dongles[first],
@@ -66,7 +62,6 @@ void	compile_coder(t_coder_context *context)
 	pthread_mutex_lock(&context->simulation->state_mutex);
 	coder->last_compile_start = get_time_ms();
 	pthread_mutex_unlock(&context->simulation->state_mutex);
-
 	log_event(context->simulation, coder->id, "is compiling");
 	usleep(context->simulation->config->time_to_compile * 1000);
 }
@@ -92,18 +87,15 @@ int	finish_compile_cycle(t_coder_context *context)
 		return (1);
 	log_event(context->simulation, coder->id, "is debugging");
 	usleep(context->simulation->config->time_to_debug * 1000);
-
 	if (is_simulation_stopped(context->simulation))
 		return (1);
 	log_event(context->simulation, coder->id, "is refactoring");
 	usleep(context->simulation->config->time_to_refactor * 1000);
-
 	if (is_simulation_stopped(context->simulation))
 		return (1);
 	pthread_mutex_lock(&context->simulation->state_mutex);
 	coder->compile_count++;
 	pthread_mutex_unlock(&context->simulation->state_mutex);
-
 	pthread_mutex_lock(&context->simulation->state_mutex);
 	if (coder->compile_count
 		>= context->simulation->config->number_of_compiles_required)

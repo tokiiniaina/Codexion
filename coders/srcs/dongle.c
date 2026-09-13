@@ -35,7 +35,6 @@ int	reserve_dongles(t_simulation_data *simulation,
 	long	current_time;
 
 	current_time = get_time_ms();
-
 	pthread_mutex_lock(&simulation->dongles[first].mutex);
 	if (simulation->dongles[first].is_reserved)
 	{
@@ -54,7 +53,6 @@ int	reserve_dongles(t_simulation_data *simulation,
 	simulation->dongles[first].is_reserved = 1;
 	simulation->dongles[first].is_available = 0;
 	pthread_mutex_unlock(&simulation->dongles[first].mutex);
-
 	if (second != -1)
 	{
 		pthread_mutex_lock(&simulation->dongles[second].mutex);

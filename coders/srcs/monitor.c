@@ -5,7 +5,7 @@ void	*monitor_routine(void *arg)
 	t_simulation_data	*simulation;
 	int					i;
 	int					j;
-	long					current_time;
+	long				current_time;
 	int					all_finished;
 
 	simulation = (t_simulation_data *)arg;

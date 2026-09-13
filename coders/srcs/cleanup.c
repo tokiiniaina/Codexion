@@ -17,8 +17,8 @@ void	destroy_dongle_mutexes(t_dongle_data *dongles, int count)
 	int	i;
 
 	i = 0;
- 	while (i < count)
-   	{
+	while (i < count)
+	{
 		pthread_mutex_destroy(&dongles[i].mutex);
 		i++;
 	}
