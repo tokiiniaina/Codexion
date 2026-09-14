@@ -29,58 +29,60 @@ void	get_coder_dongles(t_simulation_data *simulation,
 	}
 }
 
+static int	try_reserve_dongle(t_simulation_data *sim, int idx,
+		long current_time)
+{
+	pthread_mutex_lock(&sim->dongles[idx].mutex);
+	if (sim->dongles[idx].is_reserved)
+	{
+		pthread_mutex_unlock(&sim->dongles[idx].mutex);
+		return (0);
+	}
+	if (!sim->dongles[idx].is_available)
+	{
+		if (current_time < sim->dongles[idx].available_at)
+		{
+			pthread_mutex_unlock(&sim->dongles[idx].mutex);
+			return (0);
+		}
+		sim->dongles[idx].is_available = 1;
+	}
+	sim->dongles[idx].is_reserved = 1;
+	sim->dongles[idx].is_available = 0;
+	pthread_mutex_unlock(&sim->dongles[idx].mutex);
+	return (1);
+}
+
 int	reserve_dongles(t_simulation_data *simulation,
 		int first, int second)
 {
 	long	current_time;
 
 	current_time = get_time_ms();
-	pthread_mutex_lock(&simulation->dongles[first].mutex);
-	if (simulation->dongles[first].is_reserved)
-	{
-		pthread_mutex_unlock(&simulation->dongles[first].mutex);
+	if (!try_reserve_dongle(simulation, first, current_time))
 		return (0);
-	}
-	if (!simulation->dongles[first].is_available)
-	{
-		if (current_time < simulation->dongles[first].available_at)
-		{
-			pthread_mutex_unlock(&simulation->dongles[first].mutex);
-			return (0);
-		}
-		simulation->dongles[first].is_available = 1;
-	}
-	simulation->dongles[first].is_reserved = 1;
-	simulation->dongles[first].is_available = 0;
-	pthread_mutex_unlock(&simulation->dongles[first].mutex);
 	if (second != -1)
 	{
-		pthread_mutex_lock(&simulation->dongles[second].mutex);
-		if (simulation->dongles[second].is_reserved)
+		if (!try_reserve_dongle(simulation, second, current_time))
 		{
-			pthread_mutex_unlock(&simulation->dongles[second].mutex);
 			pthread_mutex_lock(&simulation->dongles[first].mutex);
 			simulation->dongles[first].is_reserved = 0;
 			simulation->dongles[first].is_available = 1;
 			pthread_mutex_unlock(&simulation->dongles[first].mutex);
 			return (0);
 		}
-		if (!simulation->dongles[second].is_available)
-		{
-			if (current_time < simulation->dongles[second].available_at)
-			{
-				pthread_mutex_unlock(&simulation->dongles[second].mutex);
-				pthread_mutex_lock(&simulation->dongles[first].mutex);
-				simulation->dongles[first].is_reserved = 0;
-				simulation->dongles[first].is_available = 1;
-				pthread_mutex_unlock(&simulation->dongles[first].mutex);
-				return (0);
-			}
-			simulation->dongles[second].is_available = 1;
-		}
-		simulation->dongles[second].is_reserved = 1;
-		simulation->dongles[second].is_available = 0;
-		pthread_mutex_unlock(&simulation->dongles[second].mutex);
 	}
 	return (1);
+}
+
+void	release_dongles(t_coder_context *context, int first, int second)
+{
+	t_dongle_data	*dongles;
+
+	dongles = context->simulation->dongles;
+	if (second != -1)
+		unlock_dongle(&dongles[second],
+			context->simulation->config->dongle_cooldown);
+	unlock_dongle(&dongles[first],
+		context->simulation->config->dongle_cooldown);
 }

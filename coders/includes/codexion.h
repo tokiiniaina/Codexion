@@ -103,32 +103,32 @@ void	free_simulation(t_simulation_data *simulation,
 			int mutex_count, int cond_count);
 void	destroy_dongle_mutexes(t_dongle_data *dongles, int count);
 
-int	is_simulation_stopped(t_simulation_data *simulation);
+int		is_simulation_stopped(t_simulation_data *simulation);
 void	mark_coder_finished(t_simulation_data *simulation,
-		t_coder_data *coder);
-int	get_compile_count(t_simulation_data *simulation,
-		t_coder_data *coder);
-int	enqueue_compile_request(t_coder_data *coder,
-		t_simulation_data *simulation);
+			t_coder_data *coder);
+int		get_compile_count(t_simulation_data *simulation,
+			t_coder_data *coder);
+int		enqueue_compile_request(t_coder_data *coder,
+			t_simulation_data *simulation);
 void	unlock_dongle(t_dongle_data *dongle, int cooldown);
 void	get_coder_dongles(t_simulation_data *simulation,
-		int coder_id, int *first, int *second);
-int	reserve_dongles(t_simulation_data *simulation,
-		int first, int second);
+			int coder_id, int *first, int *second);
+int		reserve_dongles(t_simulation_data *simulation,
+			int first, int second);
 void	log_event(t_simulation_data *simulation, int coder_id,
-		char *message);
-int	drain_queue(t_simulation_data *simulation,
-		t_compile_request *pending);
-int	dispatch_pending(t_simulation_data *simulation,
-		t_compile_request *pending, int pending_count);
+			char *message);
+int		drain_queue(t_simulation_data *simulation,
+			t_compile_request *pending);
+int		dispatch_pending(t_simulation_data *simulation,
+			t_compile_request *pending, int pending_count);
 void	*scheduler_routine(void *arg);
 void	*coder_routine(void *arg);
 void	*monitor_routine(void *arg);
-int	wait_for_permission(t_coder_context *context);
-int	take_dongles(t_coder_context *context, int first, int second);
+int		wait_for_permission(t_coder_context *context);
+int		take_dongles(t_coder_context *context, int first, int second);
 void	compile_coder(t_coder_context *context);
 void	release_dongles(t_coder_context *context, int first, int second);
-int	finish_compile_cycle(t_coder_context *context);
+int		finish_compile_cycle(t_coder_context *context);
 
 int		init_priority_queue(t_priority_queue *queue, int capacity);
 int		push_request(t_priority_queue *queue,
@@ -136,13 +136,13 @@ int		push_request(t_priority_queue *queue,
 int		pop_request(t_priority_queue *queue,
 			t_compile_request *request, t_scheduler scheduler);
 int		peek_request(t_priority_queue *queue,
-		t_compile_request *request);
-int	compare_requests(t_compile_request *first,
-		t_compile_request *second, t_scheduler scheduler);
+			t_compile_request *request);
+int		compare_requests(t_compile_request *first,
+			t_compile_request *second, t_scheduler scheduler);
 void	heapify_up(t_priority_queue *queue, int index,
-		t_scheduler scheduler);
+			t_scheduler scheduler);
 void	heapify_down(t_priority_queue *queue, int index,
-		t_scheduler scheduler);
+			t_scheduler scheduler);
 
 long	get_time_ms(void);
 

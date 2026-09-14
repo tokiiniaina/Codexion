@@ -1,67 +1,61 @@
 #include "codexion.h"
 
-int	init_simulation(t_simulation_data *simulation,
+static int	init_sync_primitives(t_simulation_data *simulation,
 		t_simulation_config *config)
 {
-	int	i;
-	int	cond_count;
+	pthread_mutex_t	*mtx[3];
+	int				i;
 
-	cond_count = 0;
-	simulation->stop_simulation = 0;
-	simulation->start_time = 0;
-	simulation->config = config;
-	simulation->coders = NULL;
-	simulation->dongles = NULL;
-	simulation->threads = NULL;
-	simulation->finished_coders = 0;
-	simulation->scheduler_thread = 0;
-	simulation->request_counter = 0;
-	simulation->queue.requests = NULL;
-	simulation->queue.size = 0;
-	simulation->queue.capacity = 0;
-	if (pthread_mutex_init(&simulation->log_mutex, NULL) != 0)
-		return (1);
-	if (pthread_mutex_init(&simulation->state_mutex, NULL) != 0)
+	mtx[0] = &simulation->log_mutex;
+	mtx[1] = &simulation->state_mutex;
+	mtx[2] = &simulation->queue_mutex;
+	i = -1;
+	while (++i < 3 && pthread_mutex_init(mtx[i], NULL) == 0)
+		;
+	if (i == 3 && pthread_cond_init(&simulation->queue_cond, NULL) == 0)
 	{
-		pthread_mutex_destroy(&simulation->log_mutex);
-		return (1);
-	}
-	if (pthread_mutex_init(&simulation->queue_mutex, NULL) != 0)
-	{
-		pthread_mutex_destroy(&simulation->state_mutex);
-		pthread_mutex_destroy(&simulation->log_mutex);
-		return (1);
-	}
-	if (pthread_cond_init(&simulation->queue_cond, NULL) != 0)
-	{
-		pthread_mutex_destroy(&simulation->queue_mutex);
-		pthread_mutex_destroy(&simulation->state_mutex);
-		pthread_mutex_destroy(&simulation->log_mutex);
-		return (1);
-	}
-	if (init_priority_queue(&simulation->queue,
-			config->number_of_coders) != 0)
-	{
+		if (init_priority_queue(&simulation->queue,
+				config->number_of_coders) == 0)
+			return (0);
 		pthread_cond_destroy(&simulation->queue_cond);
-		pthread_mutex_destroy(&simulation->queue_mutex);
-		pthread_mutex_destroy(&simulation->state_mutex);
-		pthread_mutex_destroy(&simulation->log_mutex);
-		return (1);
 	}
-	simulation->coders = malloc(sizeof(t_coder_data)
-			* config->number_of_coders);
+	while (--i >= 0)
+		pthread_mutex_destroy(mtx[i]);
+	return (1);
+}
+
+static int	alloc_simulation_arrays(t_simulation_data *simulation,
+		t_simulation_config *config)
+{
+	int	n;
+
+	n = config->number_of_coders;
+	simulation->coders = malloc(sizeof(t_coder_data) * n);
 	if (!simulation->coders)
 	{
-		free_simulation(simulation, 0, cond_count);
+		free_simulation(simulation, 0, 0);
 		return (1);
 	}
-	simulation->threads = malloc(sizeof(pthread_t)
-			* config->number_of_coders);
+	simulation->threads = malloc(sizeof(pthread_t) * n);
 	if (!simulation->threads)
 	{
-		free_simulation(simulation, 0, cond_count);
+		free_simulation(simulation, 0, 0);
 		return (1);
 	}
+	simulation->dongles = malloc(sizeof(t_dongle_data) * n);
+	if (!simulation->dongles)
+	{
+		free_simulation(simulation, 0, 0);
+		return (1);
+	}
+	return (0);
+}
+
+static int	init_coders(t_simulation_data *simulation,
+		t_simulation_config *config, int *cond_count)
+{
+	int	i;
+
 	i = 0;
 	while (i < config->number_of_coders)
 	{
@@ -72,19 +66,20 @@ int	init_simulation(t_simulation_data *simulation,
 		simulation->coders[i].has_permission = 0;
 		if (pthread_cond_init(&simulation->coders[i].cond, NULL) != 0)
 		{
-			free_simulation(simulation, 0, cond_count);
+			free_simulation(simulation, 0, *cond_count);
 			return (1);
 		}
-		cond_count++;
+		(*cond_count)++;
 		i++;
 	}
-	simulation->dongles = malloc(sizeof(t_dongle_data)
-			* config->number_of_coders);
-	if (!simulation->dongles)
-	{
-		free_simulation(simulation, 0, cond_count);
-		return (1);
-	}
+	return (0);
+}
+
+static int	init_dongles(t_simulation_data *simulation,
+		t_simulation_config *config, int cond_count)
+{
+	int	i;
+
 	i = 0;
 	while (i < config->number_of_coders)
 	{
@@ -100,5 +95,34 @@ int	init_simulation(t_simulation_data *simulation,
 		}
 		i++;
 	}
+	return (0);
+}
+
+int	init_simulation(t_simulation_data *simulation,
+		t_simulation_config *config)
+{
+	int	cond_count;
+
+	simulation->stop_simulation = 0;
+	simulation->start_time = 0;
+	simulation->config = config;
+	simulation->coders = NULL;
+	simulation->dongles = NULL;
+	simulation->threads = NULL;
+	simulation->finished_coders = 0;
+	simulation->scheduler_thread = 0;
+	simulation->request_counter = 0;
+	simulation->queue.requests = NULL;
+	simulation->queue.size = 0;
+	simulation->queue.capacity = 0;
+	cond_count = 0;
+	if (init_sync_primitives(simulation, config) != 0)
+		return (1);
+	if (alloc_simulation_arrays(simulation, config) != 0)
+		return (1);
+	if (init_coders(simulation, config, &cond_count) != 0)
+		return (1);
+	if (init_dongles(simulation, config, cond_count) != 0)
+		return (1);
 	return (0);
 }

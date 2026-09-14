@@ -22,33 +22,28 @@ int	wait_for_permission(t_coder_context *context)
 
 int	take_dongles(t_coder_context *context, int first, int second)
 {
-	t_dongle_data	*dongles;
+	t_dongle_data		*dongles;
+	t_simulation_data	*sim;
+	int					cd;
 
-	dongles = context->simulation->dongles;
+	sim = context->simulation;
+	dongles = sim->dongles;
+	cd = sim->config->dongle_cooldown;
 	pthread_mutex_lock(&dongles[first].mutex);
-	log_event(context->simulation, context->coder->id,
-		"has taken a dongle");
-	if (second != -1)
+	log_event(sim, context->coder->id, "has taken a dongle");
+	if (second == -1)
 	{
-		pthread_mutex_lock(&dongles[second].mutex);
-		log_event(context->simulation, context->coder->id,
-			"has taken a dongle");
-	}
-	else
-	{
-		while (!is_simulation_stopped(context->simulation))
+		while (!is_simulation_stopped(sim))
 			usleep(1000);
-		unlock_dongle(&dongles[first],
-			context->simulation->config->dongle_cooldown);
+		unlock_dongle(&dongles[first], cd);
 		return (1);
 	}
-	if (is_simulation_stopped(context->simulation))
+	pthread_mutex_lock(&dongles[second].mutex);
+	log_event(sim, context->coder->id, "has taken a dongle");
+	if (is_simulation_stopped(sim))
 	{
-		if (second != -1)
-			unlock_dongle(&dongles[second],
-				context->simulation->config->dongle_cooldown);
-		unlock_dongle(&dongles[first],
-			context->simulation->config->dongle_cooldown);
+		unlock_dongle(&dongles[second], cd);
+		unlock_dongle(&dongles[first], cd);
 		return (1);
 	}
 	return (0);
@@ -66,44 +61,40 @@ void	compile_coder(t_coder_context *context)
 	usleep(context->simulation->config->time_to_compile * 1000);
 }
 
-void	release_dongles(t_coder_context *context, int first, int second)
+static int	coder_step(t_simulation_data *sim, t_coder_data *coder,
+		char *msg, int duration)
 {
-	t_dongle_data	*dongles;
-
-	dongles = context->simulation->dongles;
-	if (second != -1)
-		unlock_dongle(&dongles[second],
-			context->simulation->config->dongle_cooldown);
-	unlock_dongle(&dongles[first],
-		context->simulation->config->dongle_cooldown);
+	if (is_simulation_stopped(sim))
+		return (1);
+	log_event(sim, coder->id, msg);
+	usleep(duration * 1000);
+	return (0);
 }
 
 int	finish_compile_cycle(t_coder_context *context)
 {
-	t_coder_data	*coder;
+	t_coder_data		*coder;
+	t_simulation_data	*sim;
 
 	coder = context->coder;
-	if (is_simulation_stopped(context->simulation))
+	sim = context->simulation;
+	if (coder_step(sim, coder, "is debugging", sim->config->time_to_debug))
 		return (1);
-	log_event(context->simulation, coder->id, "is debugging");
-	usleep(context->simulation->config->time_to_debug * 1000);
-	if (is_simulation_stopped(context->simulation))
+	if (coder_step(sim, coder, "is refactoring",
+			sim->config->time_to_refactor))
 		return (1);
-	log_event(context->simulation, coder->id, "is refactoring");
-	usleep(context->simulation->config->time_to_refactor * 1000);
-	if (is_simulation_stopped(context->simulation))
+	if (is_simulation_stopped(sim))
 		return (1);
-	pthread_mutex_lock(&context->simulation->state_mutex);
+	pthread_mutex_lock(&sim->state_mutex);
 	coder->compile_count++;
-	pthread_mutex_unlock(&context->simulation->state_mutex);
-	pthread_mutex_lock(&context->simulation->state_mutex);
-	if (coder->compile_count
-		>= context->simulation->config->number_of_compiles_required)
+	pthread_mutex_unlock(&sim->state_mutex);
+	pthread_mutex_lock(&sim->state_mutex);
+	if (coder->compile_count >= sim->config->number_of_compiles_required)
 	{
-		pthread_mutex_unlock(&context->simulation->state_mutex);
-		mark_coder_finished(context->simulation, coder);
+		pthread_mutex_unlock(&sim->state_mutex);
+		mark_coder_finished(sim, coder);
 	}
 	else
-		pthread_mutex_unlock(&context->simulation->state_mutex);
+		pthread_mutex_unlock(&sim->state_mutex);
 	return (0);
 }

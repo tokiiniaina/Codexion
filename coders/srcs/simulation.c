@@ -1,142 +1,89 @@
 #include "codexion.h"
 
-int	is_simulation_stopped(t_simulation_data *simulation)
+static void	stop_and_wake(t_simulation_data *sim)
 {
-	int	stopped;
+	int	i;
 
-	pthread_mutex_lock(&simulation->state_mutex);
-	stopped = simulation->stop_simulation;
-	pthread_mutex_unlock(&simulation->state_mutex);
-	return (stopped);
+	pthread_mutex_lock(&sim->state_mutex);
+	sim->stop_simulation = 1;
+	i = -1;
+	while (++i < sim->config->number_of_coders)
+		pthread_cond_signal(&sim->coders[i].cond);
+	pthread_mutex_unlock(&sim->state_mutex);
+	pthread_mutex_lock(&sim->queue_mutex);
+	pthread_cond_broadcast(&sim->queue_cond);
+	pthread_mutex_unlock(&sim->queue_mutex);
 }
 
-void	mark_coder_finished(t_simulation_data *simulation,
-		t_coder_data *coder)
+static void	init_contexts(t_simulation_data *sim, t_coder_context *ctx)
 {
-	pthread_mutex_lock(&simulation->state_mutex);
-	if (!coder->is_finished)
+	int	i;
+
+	sim->start_time = get_time_ms();
+	i = -1;
+	while (++i < sim->config->number_of_coders)
 	{
-		coder->is_finished = 1;
-		simulation->finished_coders++;
+		sim->coders[i].last_compile_start = sim->start_time;
+		ctx[i].coder = &sim->coders[i];
+		ctx[i].simulation = sim;
 	}
-	pthread_mutex_unlock(&simulation->state_mutex);
 }
 
-int	get_compile_count(t_simulation_data *simulation,
-		t_coder_data *coder)
+static void	join_threads(t_simulation_data *sim, int count, int stop_first)
 {
-	int	compile_count;
-
-	pthread_mutex_lock(&simulation->state_mutex);
-	compile_count = coder->compile_count;
-	pthread_mutex_unlock(&simulation->state_mutex);
-	return (compile_count);
-}
-
-int	enqueue_compile_request(t_coder_data *coder,
-		t_simulation_data *simulation)
-{
-	t_compile_request	request;
-	long				last_compile_start;
-
-	pthread_mutex_lock(&simulation->state_mutex);
-	last_compile_start = coder->last_compile_start;
-	pthread_mutex_unlock(&simulation->state_mutex);
-	request.coder_id = coder->id;
-	request.deadline = last_compile_start
-		+ simulation->config->time_to_burnout;
-	pthread_mutex_lock(&simulation->queue_mutex);
-	request.arrival_order = simulation->request_counter;
-	simulation->request_counter++;
-	if (push_request(&simulation->queue, request,
-			simulation->config->scheduler) != 0)
+	if (stop_first)
+		stop_and_wake(sim);
+	while (count > 0)
 	{
-		pthread_mutex_unlock(&simulation->queue_mutex);
+		count--;
+		pthread_join(sim->threads[count], NULL);
+	}
+	pthread_join(sim->scheduler_thread, NULL);
+	pthread_join(sim->monitor_thread, NULL);
+}
+
+static int	spawn_all(t_simulation_data *sim, t_coder_context *ctx)
+{
+	int	i;
+
+	if (pthread_create(&sim->monitor_thread, NULL,
+			monitor_routine, sim) != 0)
+		return (1);
+	if (pthread_create(&sim->scheduler_thread, NULL,
+			scheduler_routine, sim) != 0)
+	{
+		stop_and_wake(sim);
+		pthread_join(sim->monitor_thread, NULL);
 		return (1);
 	}
-	pthread_cond_signal(&simulation->queue_cond);
-	pthread_mutex_unlock(&simulation->queue_mutex);
+	i = -1;
+	while (++i < sim->config->number_of_coders)
+	{
+		if (pthread_create(&sim->threads[i], NULL,
+				coder_routine, &ctx[i]) != 0)
+		{
+			join_threads(sim, i, 1);
+			return (1);
+		}
+	}
 	return (0);
 }
 
 int	start_simulation(t_simulation_data *simulation)
 {
 	t_coder_context	*contexts;
-	int				i;
-	int				created_threads;
 
-	created_threads = 0;
 	contexts = malloc(sizeof(t_coder_context)
 			* simulation->config->number_of_coders);
 	if (!contexts)
 		return (1);
-	simulation->start_time = get_time_ms();
-	i = 0;
-	while (i < simulation->config->number_of_coders)
-	{
-		simulation->coders[i].last_compile_start = simulation->start_time;
-		i++;
-	}
-	if (pthread_create(&simulation->monitor_thread, NULL,
-			monitor_routine, simulation) != 0)
+	init_contexts(simulation, contexts);
+	if (spawn_all(simulation, contexts))
 	{
 		free(contexts);
 		return (1);
 	}
-	if (pthread_create(&simulation->scheduler_thread, NULL,
-			scheduler_routine, simulation) != 0)
-	{
-		pthread_mutex_lock(&simulation->state_mutex);
-		simulation->stop_simulation = 1;
-		pthread_mutex_unlock(&simulation->state_mutex);
-		pthread_mutex_lock(&simulation->queue_mutex);
-		pthread_cond_broadcast(&simulation->queue_cond);
-		pthread_mutex_unlock(&simulation->queue_mutex);
-		pthread_join(simulation->monitor_thread, NULL);
-		free(contexts);
-		return (1);
-	}
-	i = 0;
-	while (i < simulation->config->number_of_coders)
-	{
-		contexts[i].coder = &simulation->coders[i];
-		contexts[i].simulation = simulation;
-		if (pthread_create(&simulation->threads[i], NULL,
-				coder_routine, &contexts[i]) != 0)
-		{
-			pthread_mutex_lock(&simulation->state_mutex);
-			simulation->stop_simulation = 1;
-			i = 0;
-			while (i < simulation->config->number_of_coders)
-			{
-				pthread_cond_signal(&simulation->coders[i].cond);
-				i++;
-			}
-			pthread_mutex_unlock(&simulation->state_mutex);
-			pthread_mutex_lock(&simulation->queue_mutex);
-			pthread_cond_broadcast(&simulation->queue_cond);
-			pthread_mutex_unlock(&simulation->queue_mutex);
-			while (created_threads > 0)
-			{
-				created_threads--;
-				pthread_join(simulation->threads[created_threads], NULL);
-			}
-			pthread_join(simulation->scheduler_thread, NULL);
-			pthread_join(simulation->monitor_thread, NULL);
-			free(contexts);
-			return (1);
-		}
-		created_threads++;
-		i++;
-	}
-	i = 0;
-	while (i < simulation->config->number_of_coders)
-	{
-		pthread_join(simulation->threads[i], NULL);
-		i++;
-	}
-	pthread_join(simulation->scheduler_thread, NULL);
-	pthread_join(simulation->monitor_thread, NULL);
+	join_threads(simulation, simulation->config->number_of_coders, 0);
 	free(contexts);
 	return (0);
 }
