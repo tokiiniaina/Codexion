@@ -64,6 +64,7 @@ static int	init_coders(t_simulation_data *simulation,
 		simulation->coders[i].last_compile_start = 0;
 		simulation->coders[i].is_finished = 0;
 		simulation->coders[i].has_permission = 0;
+		simulation->coders[i].color_index = 0;
 		if (pthread_cond_init(&simulation->coders[i].cond, NULL) != 0)
 		{
 			free_simulation(simulation, 0, *cond_count);
@@ -114,6 +115,7 @@ int	init_simulation(t_simulation_data *simulation,
 	simulation->request_counter = 0;
 	simulation->queue.requests = NULL;
 	simulation->queue.size = 0;
+	simulation->next_color_index = 0;
 	simulation->queue.capacity = 0;
 	cond_count = 0;
 	if (init_sync_primitives(simulation, config) != 0)

@@ -20,6 +20,17 @@ int	wait_for_permission(t_coder_context *context)
 	return (0);
 }
 
+static void	assign_session_color(t_coder_context *context)
+{
+	t_simulation_data	*sim;
+
+	sim = context->simulation;
+	pthread_mutex_lock(&sim->state_mutex);
+	context->coder->color_index = sim->next_color_index;
+	sim->next_color_index = 1 - sim->next_color_index;
+	pthread_mutex_unlock(&sim->state_mutex);
+}
+
 int	take_dongles(t_coder_context *context, int first, int second)
 {
 	t_dongle_data		*dongles;
@@ -29,6 +40,7 @@ int	take_dongles(t_coder_context *context, int first, int second)
 	sim = context->simulation;
 	dongles = sim->dongles;
 	cd = sim->config->dongle_cooldown;
+	assign_session_color(context);
 	pthread_mutex_lock(&dongles[first].mutex);
 	log_event(sim, context->coder->id, "has taken a dongle");
 	if (second == -1)

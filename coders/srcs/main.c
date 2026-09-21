@@ -28,20 +28,6 @@ static void	print_coders(t_simulation_data *simulation, int count)
 	}
 }
 
-static void	print_dongles(t_simulation_data *simulation, int count)
-{
-	int	i;
-
-	i = 0;
-	while (i < count)
-	{
-		printf("dongle %d: available=%d\n",
-			simulation->dongles[i].id,
-			simulation->dongles[i].is_available);
-		i++;
-	}
-}
-
 static int	run_simulation(t_simulation_config *config)
 {
 	t_simulation_data	simulation;
@@ -59,7 +45,6 @@ static int	run_simulation(t_simulation_config *config)
 		return (1);
 	}
 	print_coders(&simulation, config->number_of_coders);
-	print_dongles(&simulation, config->number_of_coders);
 	free_simulation(&simulation, config->number_of_coders,
 		config->number_of_coders);
 	return (0);

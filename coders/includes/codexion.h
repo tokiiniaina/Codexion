@@ -47,6 +47,7 @@ typedef struct s_coder_data
 	int				compile_count;
 	long			last_compile_start;
 	int				is_finished;
+	int				color_index;
 
 	pthread_cond_t	cond;
 	int				has_permission;	
@@ -83,6 +84,7 @@ typedef struct s_simulation_data
 	pthread_t			scheduler_thread;
 
 	int					request_counter;
+	int					next_color_index;
 
 	pthread_mutex_t		log_mutex;
 }	t_simulation_data;
