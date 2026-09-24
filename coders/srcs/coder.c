@@ -26,10 +26,10 @@ void	*coder_routine(void *arg)
 	coder = context->coder;
 	get_coder_dongles(context->simulation, coder->id, &first, &second);
 	if (get_compile_count(context->simulation, coder)
-    >= context->simulation->config->number_of_compiles_required)
+		>= context->simulation->config->number_of_compiles_required)
 	{
-    	mark_coder_finished(context->simulation, coder);
-    	return (NULL);
+		mark_coder_finished(context->simulation, coder);
+		return (NULL);
 	}
 	while (!is_simulation_stopped(context->simulation)
 		&& get_compile_count(context->simulation, coder)
