@@ -60,6 +60,7 @@ int	take_dongles(t_coder_context *context, int first, int second)
 	{
 		unlock_dongle(&dongles[second], cd);
 		unlock_dongle(&dongles[first], cd);
+		return (1);
 	}
 	return (0);
 }

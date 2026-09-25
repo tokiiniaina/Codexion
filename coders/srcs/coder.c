@@ -1,6 +1,6 @@
 #include "codexion.h"
 
-static int	coder_cycle(t_coder_context *context, int first, int second)
+static int	run_coder_task(t_coder_context *context, int first, int second)
 {
 	if (enqueue_compile_request(context->coder, context->simulation) != 0)
 		return (1);
@@ -35,7 +35,7 @@ void	*coder_routine(void *arg)
 		&& get_compile_count(context->simulation, coder)
 		< context->simulation->config->number_of_compiles_required)
 	{
-		if (coder_cycle(context, first, second))
+		if (run_coder_task(context, first, second))
 			return (NULL);
 	}
 	return (NULL);

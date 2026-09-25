@@ -96,6 +96,8 @@ Both policies use the project's custom binary heap priority queue.
 * `man pthread_mutex_*`
 * `man pthread_cond_*`
 * `man gettimeofday`
+* [`pthread_cond_wait(3p)` — POSIX.1-2017 / Open Group Base Specifications](https://pubs.opengroup.org/onlinepubs/9699919799/functions/pthread_cond_wait.html)
+* [`pthread_cond_wait(3)` — Linux man-pages](https://man7.org/linux/man-pages/man3/pthread_cond_wait.3.html)
 * Binary heaps and priority queues
 * FIFO and EDF scheduling
 * Operating systems and concurrency references
@@ -114,8 +116,6 @@ AI assistance was used during development for tasks such as:
 * [ ] Designing test scenarios
 * [ ] Explaining compiler/runtime errors
 * [ ] Generating this README from the source code (this document)
-
-Please replace the checklist above with a short, honest, specific account of what was actually asked of AI tools and which files/functions were affected, in line with the 42 AI usage policy.
 
 # Blocking cases handled
 
@@ -137,7 +137,7 @@ Please replace the checklist above with a short, honest, specific account of wha
 | --------------------------------- | ------------------------------------------------------------------------ |
 | `pthread_mutex_t` per dongle      | Protects dongle availability, reservation and cooldown state.            |
 | `state_mutex`                     | Protects coder state and simulation termination state.                   |
-| `queue_mutex`                     | Protects the priority queue and request counter.                         |
+| `queue_mutex`                     | Protects the priority queue and request counter.                        |
 | `pthread_cond_t cond`             | Allows each coder to wait for scheduler permission.                      |
 | `pthread_cond_t queue_cond`       | Wakes the scheduler when requests are available or the simulation stops. |
 | `log_mutex`                       | Serializes log output.                                                   |
@@ -170,10 +170,30 @@ Coder
 
 The monitor independently checks coder state and can stop the simulation by updating the shared termination state and waking waiting threads.
 
+### Waiting strategy
+
+We use `pthread_cond_wait` wherever a thread can be woken by a specific, predictable event (a granted permission, a new request in the queue), since it lets the thread sleep with zero CPU usage until explicitly signaled. The only exception is the degenerate case of a single coder (`N=1`), where the coder can never acquire a second dongle and therefore has no event to wait for; there, a lightweight polling loop (`usleep(1000)`) is used instead, since its CPU cost is negligible for this one edge case and avoids adding a dedicated condition variable for a scenario that never occurs in a real multi-coder simulation.
+
+### Why `pthread_cond_wait` is always called inside a loop
+
+Per the POSIX specification, `pthread_cond_wait` may return even when no thread has signaled the condition variable — these are called **spurious wakeups** — and a signaled thread is never guaranteed to be the one that re-checks the shared state first. For this reason, the predicate must always be re-evaluated in a loop after waking up:
+
+```c
+pthread_mutex_lock(&mutex);
+while (!condition)
+    pthread_cond_wait(&cond, &mutex);
+/* condition is now guaranteed true */
+pthread_mutex_unlock(&mutex);
+```
+
+References:
+* [`pthread_cond_wait(3p)` — POSIX.1-2017 / Open Group Base Specifications](https://pubs.opengroup.org/onlinepubs/9699919799/functions/pthread_cond_wait.html)
+* [`pthread_cond_wait(3)` — Linux man-pages](https://man7.org/linux/man-pages/man3/pthread_cond_wait.3.html)
+
 # Architecture
 
 | File                   | Responsibility                            |
-| ---------------------- | ----------------------------------------- |
+| ---------------------- | ------------------------------------------ |
 | `main.c`               | Program entry point and argument handling |
 | `parsing.c`            | Argument validation and configuration     |
 | `time.c`               | Millisecond timestamps                    |
@@ -293,17 +313,3 @@ codexion/
     ├── test_queue.c
     └── test_time.c
 ```
-
-# Evaluation / Defense
-
-Be prepared to explain:
-
-* pthread creation and joining;
-* mutexes and condition variables;
-* dongle reservation and deadlock prevention;
-* FIFO and EDF scheduling;
-* binary heaps;
-* burnout detection;
-* synchronization of shared state;
-* logging serialization;
-* simulation termination and cleanup.
