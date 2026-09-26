@@ -95,6 +95,9 @@ typedef struct s_coder_context
 	t_simulation_data	*simulation;
 }	t_coder_context;
 
+void	wake_everyone(t_simulation_data *simulation);
+void	wake_everyone_locked(t_simulation_data *simulation);
+
 int		parse_positive_number(char *value, int *result);
 int		parse_arguments(char **argv, t_simulation_config *config);
 
@@ -128,7 +131,7 @@ void	*coder_routine(void *arg);
 void	*monitor_routine(void *arg);
 int		wait_for_permission(t_coder_context *context);
 int		take_dongles(t_coder_context *context, int first, int second);
-void	compile_coder(t_coder_context *context);
+int		compile_coder(t_coder_context *context);
 void	release_dongles(t_coder_context *context, int first, int second);
 int		finish_compile_cycle(t_coder_context *context);
 

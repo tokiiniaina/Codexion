@@ -1,20 +1,5 @@
 #include "codexion.h"
 
-static void	stop_and_wake(t_simulation_data *sim)
-{
-	int	i;
-
-	pthread_mutex_lock(&sim->state_mutex);
-	sim->stop_simulation = 1;
-	i = -1;
-	while (++i < sim->config->number_of_coders)
-		pthread_cond_signal(&sim->coders[i].cond);
-	pthread_mutex_unlock(&sim->state_mutex);
-	pthread_mutex_lock(&sim->queue_mutex);
-	pthread_cond_broadcast(&sim->queue_cond);
-	pthread_mutex_unlock(&sim->queue_mutex);
-}
-
 static void	init_contexts(t_simulation_data *sim, t_coder_context *ctx)
 {
 	int	i;
@@ -32,7 +17,7 @@ static void	init_contexts(t_simulation_data *sim, t_coder_context *ctx)
 static void	join_threads(t_simulation_data *sim, int count, int stop_first)
 {
 	if (stop_first)
-		stop_and_wake(sim);
+		wake_everyone(sim);
 	while (count > 0)
 	{
 		count--;
@@ -52,7 +37,7 @@ static int	spawn_all(t_simulation_data *sim, t_coder_context *ctx)
 	if (pthread_create(&sim->scheduler_thread, NULL,
 			scheduler_routine, sim) != 0)
 	{
-		stop_and_wake(sim);
+		wake_everyone(sim);
 		pthread_join(sim->monitor_thread, NULL);
 		return (1);
 	}

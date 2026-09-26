@@ -1,22 +1,5 @@
 #include "codexion.h"
 
-static void	wake_everyone(t_simulation_data *simulation)
-{
-	int	i;
-
-	simulation->stop_simulation = 1;
-	i = 0;
-	while (i < simulation->config->number_of_coders)
-	{
-		pthread_cond_signal(&simulation->coders[i].cond);
-		i++;
-	}
-	pthread_mutex_unlock(&simulation->state_mutex);
-	pthread_mutex_lock(&simulation->queue_mutex);
-	pthread_cond_broadcast(&simulation->queue_cond);
-	pthread_mutex_unlock(&simulation->queue_mutex);
-}
-
 static int	find_burned_out(t_simulation_data *simulation,
 		long current_time)
 {
@@ -46,13 +29,13 @@ static int	monitor_tick(t_simulation_data *simulation, long current_time)
 	}
 	if (simulation->finished_coders == simulation->config->number_of_coders)
 	{
-		wake_everyone(simulation);
+		wake_everyone_locked(simulation);
 		return (1);
 	}
 	burned = find_burned_out(simulation, current_time);
 	if (burned >= 0)
 	{
-		wake_everyone(simulation);
+		wake_everyone_locked(simulation);
 		log_event(simulation, simulation->coders[burned].id, "burned out");
 		return (1);
 	}

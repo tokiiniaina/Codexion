@@ -17,7 +17,7 @@ SRCS = main.c parsing.c states.c simulation.c \
     queue/priority_queue.c queue/priority_queue_heap.c \
     time.c init.c cleanup.c coder.c \
     coder_acquire.c coder_cycle.c dongle.c scheduler.c \
-    scheduler_dispatch.c monitor.c logging.c
+    scheduler_dispatch.c monitor.c logging.c termination.c
 
 OBJS = $(addprefix $(OBJS_DIR)/, $(SRCS:.c=.o))
 TSAN_OBJS = $(addprefix $(TSAN_OBJS_DIR)/, $(SRCS:.c=.o))
