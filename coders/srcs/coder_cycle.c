@@ -1,6 +1,25 @@
 #include "codexion.h"
 
-void	compile_coder(t_coder_context *context)
+static int	 sleep_or_stop(t_simulation_data *simulation, int duration)
+{
+	long end_time;
+	long remaining;
+
+	end_time = get_time_ms() + duration;
+	while (!is_simulation_stopped(simulation))
+	{
+		remaining = end_time - get_time_ms();
+		if (remaining <= 0)
+			return (0);
+		if (remaining > 1)
+			usleep(1000);
+		else
+			usleep(remaining * 1000);
+	}
+	return (1);
+}
+
+int	compile_coder(t_coder_context *context)
 {
 	t_coder_data	*coder;
 
@@ -9,7 +28,8 @@ void	compile_coder(t_coder_context *context)
 	coder->last_compile_start = get_time_ms();
 	pthread_mutex_unlock(&context->simulation->state_mutex);
 	log_event(context->simulation, coder->id, "is compiling");
-	usleep(context->simulation->config->time_to_compile * 1000);
+	return (sleep_or_stop(context->simulation,
+			context->simulation->config->time_to_compile));
 }
 
 static int	coder_step(t_simulation_data *sim, t_coder_data *coder,
@@ -18,8 +38,7 @@ static int	coder_step(t_simulation_data *sim, t_coder_data *coder,
 	if (is_simulation_stopped(sim))
 		return (1);
 	log_event(sim, coder->id, msg);
-	usleep(duration * 1000);
-	return (0);
+	return (sleep_or_stop(sim, duration));
 }
 
 int	finish_compile_cycle(t_coder_context *context)

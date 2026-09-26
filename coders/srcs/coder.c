@@ -8,7 +8,11 @@ static int	run_coder_task(t_coder_context *context, int first, int second)
 		return (1);
 	if (take_dongles(context, first, second))
 		return (1);
-	compile_coder(context);
+	if (compile_coder(context))
+	{
+		release_dongles(context, first, second);
+		return (1);
+	}
 	release_dongles(context, first, second);
 	if (finish_compile_cycle(context))
 		return (1);
