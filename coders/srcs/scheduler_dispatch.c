@@ -16,7 +16,6 @@ static void	grant_permission(t_simulation_data *simulation, int coder_id)
 	pthread_mutex_lock(&simulation->state_mutex);
 	if (!simulation->stop_simulation)
 	{
-		coder->last_compile_start = get_time_ms();
 		coder->has_permission = 1;
 		pthread_cond_signal(&coder->cond);
 	}

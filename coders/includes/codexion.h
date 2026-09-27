@@ -7,6 +7,7 @@
 # include <stdlib.h>
 # include <string.h>
 # include <sys/time.h>
+# include <time.h>
 # include <unistd.h>
 
 typedef struct s_compile_request
@@ -127,6 +128,7 @@ int		drain_queue(t_simulation_data *simulation,
 int		dispatch_pending(t_simulation_data *simulation,
 			t_compile_request *pending, int pending_count);
 void	*scheduler_routine(void *arg);
+void	signal_scheduler(t_simulation_data *simulation);
 void	*coder_routine(void *arg);
 void	*monitor_routine(void *arg);
 int		wait_for_permission(t_coder_context *context);

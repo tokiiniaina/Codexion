@@ -32,7 +32,8 @@ void	get_coder_dongles(t_simulation_data *simulation,
 static int	try_reserve_dongle(t_simulation_data *sim, int idx,
 		long current_time)
 {
-	pthread_mutex_lock(&sim->dongles[idx].mutex);
+	if (pthread_mutex_trylock(&sim->dongles[idx].mutex) != 0)
+		return (0);
 	if (sim->dongles[idx].is_reserved)
 	{
 		pthread_mutex_unlock(&sim->dongles[idx].mutex);
@@ -85,4 +86,5 @@ void	release_dongles(t_coder_context *context, int first, int second)
 			context->simulation->config->dongle_cooldown);
 	unlock_dongle(&dongles[first],
 		context->simulation->config->dongle_cooldown);
+	signal_scheduler(context->simulation);
 }

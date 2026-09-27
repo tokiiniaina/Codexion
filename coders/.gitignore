@@ -19,6 +19,9 @@ Thumbs.db
 # Test outputs & logs
 *.log
 stress_edf.sh
+tests/
+test_*
+*_test.txt
 
 # IDE & Editor Configurations
 .vscode/
