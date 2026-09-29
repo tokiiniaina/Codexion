@@ -12,22 +12,6 @@ static void	print_config(t_simulation_config *config)
 	printf("scheduler: %d\n", config->scheduler);
 }
 
-static void	print_coders(t_simulation_data *simulation, int count)
-{
-	int	i;
-
-	i = 0;
-	while (i < count)
-	{
-		printf("coder %d: count=%d, last=%ld, finished=%d\n",
-			simulation->coders[i].id,
-			simulation->coders[i].compile_count,
-			simulation->coders[i].last_compile_start,
-			simulation->coders[i].is_finished);
-		i++;
-	}
-}
-
 static int	run_simulation(t_simulation_config *config)
 {
 	t_simulation_data	simulation;
@@ -44,7 +28,6 @@ static int	run_simulation(t_simulation_config *config)
 			config->number_of_coders);
 		return (1);
 	}
-	print_coders(&simulation, config->number_of_coders);
 	free_simulation(&simulation, config->number_of_coders,
 		config->number_of_coders);
 	return (0);

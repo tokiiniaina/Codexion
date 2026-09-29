@@ -25,12 +25,8 @@ void	mark_coder_finished(t_simulation_data *simulation,
 int	get_compile_count(t_simulation_data *simulation,
 		t_coder_data *coder)
 {
-	int	compile_count;
-
-	pthread_mutex_lock(&simulation->state_mutex);
-	compile_count = coder->compile_count;
-	pthread_mutex_unlock(&simulation->state_mutex);
-	return (compile_count);
+	(void)simulation;
+	return (coder->compile_count);
 }
 
 int	enqueue_compile_request(t_coder_data *coder,

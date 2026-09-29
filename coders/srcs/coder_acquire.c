@@ -3,15 +3,8 @@
 static int	burn_out_alone(t_simulation_data *sim,
 		t_dongle_data *dongle, int cd)
 {
-	int	should_log;
-
-	pthread_mutex_lock(&sim->state_mutex);
-	should_log = !sim->stop_simulation;
-	sim->stop_simulation = 1;
-	pthread_mutex_unlock(&sim->state_mutex);
-	if (should_log)
-		log_event(sim, 0, "burned out");
-	wake_everyone(sim);
+	while (!is_simulation_stopped(sim))
+		usleep(1000);
 	unlock_dongle(dongle, cd);
 	signal_scheduler(sim);
 	return (1);
