@@ -16,7 +16,7 @@ Compiling requires two neighboring dongles simultaneously. Released dongles rema
 
 The simulation stops when:
 
-* a coder burns out because they did not start compiling before their deadline;
+* a coder's time since its last compilation start reaches the burnout limit;
 * or every coder has completed the required number of compilations.
 
 The project implements two scheduling policies: **FIFO** and **EDF**.
@@ -24,8 +24,8 @@ The project implements two scheduling policies: **FIFO** and **EDF**.
 # Limitations
 
 * With one coder, only one dongle exists, so compilation is impossible because
-  compilation requires two dongles. The current implementation stops this
-  degenerate simulation immediately after the coder takes the dongle.
+   compilation requires two dongles. The coder takes the only dongle but cannot
+   obtain a second one, so it waits until the monitor stops the simulation.
 * The monitor checks burnout deadlines every millisecond. This provides the
   timing precision required for burnout logs, but it is still a lightweight
   polling loop.
@@ -37,20 +37,48 @@ The project implements two scheduling policies: **FIFO** and **EDF**.
 
 ## Design choices
 
-1. Each coder owns one position in a ring and requests its two neighboring
-   dongles before compiling.
+1. Each coder owns one position in a ring and requests its two adjacent dongles
+   before compiling.
 2. Each dongle has its own mutex. Dongles are reserved in a consistent order to
    prevent circular wait and the reservation is rolled back if the second
    dongle is unavailable.
-3. Compile requests are stored in a binary heap. FIFO compares arrival order;
+3. The scheduler never blocks on a dongle: it uses `pthread_mutex_trylock`,
+   while coders use `pthread_mutex_lock` and hold dongles for the whole
+   compilation. A blocking scheduler lock would delay pending requests until
+   an unrelated compilation ends, potentially causing avoidable EDF burnout.
+4. Compile requests are stored in a binary heap. FIFO compares arrival order;
    EDF compares burnout deadlines and then arrival order.
-4. The scheduler is separated from the coder threads. It drains the request
+5. The scheduler is separated from the coder threads. It drains the request
    queue, tries to reserve dongles and grants permission only after both
    dongles are reserved.
-5. Condition variables allow coders and the scheduler to sleep until a
+6. Condition variables allow coders and the scheduler to sleep until a
    meaningful event occurs. Dongle cooldown is enforced with `available_at`.
-6. A separate monitor checks burnout and completion, then wakes every waiting
+7. A separate monitor checks burnout and completion, then wakes every waiting
    thread during termination.
+
+### Example: why `trylock`
+
+In the program, log ids start at 1, and two coders whose dongles do not
+overlap (for example log ids 1 and 3) must be able to compile in parallel.
+
+```sh
+./codexion 4 1000 200 200 200 3 100 fifo
+```
+
+```text
+1 1 is compiling
+2 3 is compiling
+```
+
+With `trylock`: both coders start within a few milliseconds of each other
+(timestamps near 0). With a blocking `pthread_mutex_lock` in
+`try_reserve_dongle` (file `dongle.c`): the second coder starts only after the
+first compilation ends, around t=200, because the scheduler sleeps on the
+busy dongle.
+
+Timestamps and which pair of coders runs first can vary slightly between runs
+(thread scheduling), but the two starts must be close to each other, not 200
+ms apart.
 
 ## Algorithm flow
 
@@ -184,36 +212,30 @@ make asan
 ./codexion_asan 4 3000 50 20 20 2 20 edf
 ```
 
+## Helgrind
+
+```sh
+valgrind --tool=helgrind --history-level=full --log-file=helgrind.log \
+   ./codexion 5 1500 200 200 200 3 100 edf
+
+valgrind --tool=helgrind ./codexion 4 800 200 200 200 3 100 fifo
+```
+
 Run each sanitizer 10 to 20 times with different scenarios: one coder, multiple
 coders, both `fifo` and `edf`, and tight deadlines. Thread races are
 non-deterministic, so one successful run does not prove that the program is
 race-free.
 
-## AI usage
-
-*(To be completed by the author with the actual, specific ways AI tools were used — this subsection was intentionally left as a template rather than invented, per the project's honesty requirement.)*
-
-AI assistance was used during development for tasks such as:
-
-* [ ] Understanding pthreads / mutexes / condition variables concepts
-* [ ] Understanding FIFO vs EDF scheduling
-* [ ] Debugging specific issues (describe which)
-* [ ] Reviewing synchronization logic (describe which parts)
-* [ ] Designing test scenarios
-* [ ] Explaining compiler/runtime errors
-* [ ] Generating this README from the source code (this document)
-
 # Blocking cases handled
 
 | Case                     | Mechanism                                                                                                   |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| **Deadlock**             | Dongles are reserved in a consistent order and reservations are rolled back if the pair cannot be obtained. |
-| **Coffman's conditions** | Per-dongle mutexes provide mutual exclusion; fixed ordering prevents circular wait.                         |
+| **Coffman's conditions** | Per-dongle mutexes provide mutual exclusion; ordered reservation prevents circular wait, and reservations are rolled back if the pair cannot be obtained. |
 | **Race conditions**      | Shared simulation state, queue state, logging and dongle state are protected by dedicated mutexes.          |
-| **Starvation**           | Requests are ordered through FIFO or EDF priority policies.                                                 |
-| **Fair arbitration**     | A custom binary heap determines which pending request is considered first.                                  |
+| **Starvation prevention** | FIFO and EDF request ordering prevent a coder from being indefinitely denied dongles under feasible parameters. |
+| **Request selection**    | A custom binary heap determines which pending request is considered first.                                  |
 | **Dongle cooldown**      | `available_at` prevents a dongle from being reused before its cooldown expires.                             |
-| **Burnout**              | A dedicated monitor checks coder deadlines independently from coder threads.                                |
+| **Precise burnout detection** | A dedicated monitor checks coder deadlines independently from coder threads and prints the burnout message within the required 10 ms tolerance. |
 | **Log serialization**    | `log_mutex` protects every output operation.                                                                |
 | **Termination**          | The simulation stops on burnout or when all coders reach the required compile count.                        |
 
@@ -256,6 +278,11 @@ Coder
 
 The monitor independently checks coder state and can stop the simulation by updating the shared termination state and waking waiting threads.
 
+For example, `state_mutex` protects `stop_simulation`, coder timestamps and
+completion state. Each dongle has its own mutex, while `queue_mutex` protects
+the priority queue. Coder threads wait on their individual condition variables,
+and the monitor wakes waiting threads through the shared termination state.
+
 ### Waiting strategy
 
 Coders wait on their own condition variable until the scheduler grants permission
@@ -264,21 +291,6 @@ empty and uses `pthread_cond_timedwait` when pending requests are blocked by
 dongle availability. A new request, a dongle release or termination wakes it
 before the 50 ms safety timeout.
 
-### Why `pthread_cond_wait` is always called inside a loop
-
-Per the POSIX specification, `pthread_cond_wait` may return even when no thread has signaled the condition variable — these are called **spurious wakeups** — and a signaled thread is never guaranteed to be the one that re-checks the shared state first. For this reason, the predicate must always be re-evaluated in a loop after waking up:
-
-```c
-pthread_mutex_lock(&mutex);
-while (!condition)
-    pthread_cond_wait(&cond, &mutex);
-/* condition is now guaranteed true */
-pthread_mutex_unlock(&mutex);
-```
-
-References:
-* [`pthread_cond_wait(3p)` — POSIX.1-2017 / Open Group Base Specifications](https://pubs.opengroup.org/onlinepubs/9699919799/functions/pthread_cond_wait.html)
-* [`pthread_cond_wait(3)` — Linux man-pages](https://man7.org/linux/man-pages/man3/pthread_cond_wait.3.html)
 
 # Architecture
 
@@ -339,9 +351,10 @@ Mutexes and condition variables are destroyed before their associated memory is 
 
 # Error handling
 
-Initialization and thread creation failures are checked and propagated.
-
-Already-created synchronization primitives and allocated resources are cleaned up when an initialization step fails.
+Initialization and thread-creation failures are checked. Initialization
+failures clean up the synchronization primitives and resources that were
+already created. A worker that cannot allocate its temporary scheduler data
+exits without propagating that failure to the main thread.
 
 Invalid command-line arguments are rejected before the simulation starts.
 
@@ -370,10 +383,36 @@ codexion/
 │   ├── scheduler_dispatch.c
 │   ├── monitor.c
 │   ├── logging.c
+│   ├── termination.c
 │   └── queue/
 │       ├── priority_queue.c
 │       └── priority_queue_heap.c
-└── debug/
-   ├── debug_edf_burnout.md
-   └── debug_scheduler_codexion.md
 ```
+# Resources
+
+## GeeksforGeeks
+* [Mutex lock for Linux thread synchronization](https://www.geeksforgeeks.org/mutex-lock-for-linux-thread-synchronization/): mutex, lock/unlock in C.
+* [Condition variables: wait and signal](https://www.geeksforgeeks.org/condition-wait-signal-multi-threading/): `pthread_cond_wait` / `pthread_cond_signal`.
+* [Dining philosophers problem](https://www.geeksforgeeks.org/dining-philosophers-problem/): original problem and solutions.
+* [Binary heap](https://www.geeksforgeeks.org/binary-heap/): data structure behind the priority queue.
+
+## Wikipedia
+* [Deadlock](https://en.wikipedia.org/wiki/Deadlock_(computer_science)): the four Coffman conditions.
+* [Earliest deadline first scheduling](https://en.wikipedia.org/wiki/Earliest_deadline_first_scheduling): basis of the EDF policy.
+
+## Man pages
+* [`pthread_mutex_lock(3p)`](https://man7.org/linux/man-pages/man3/pthread_mutex_lock.3p.html): lock, unlock, trylock.
+* [`pthread_cond_timedwait(3p)`](https://man7.org/linux/man-pages/man3/pthread_cond_timedwait.3p.html): timed wait used by the scheduler.
+* [`gettimeofday(2)`](https://man7.org/linux/man-pages/man2/gettimeofday.2.html): millisecond timestamps.
+
+## YouTube
+* CodeVault, *Unix Threads in C* (playlist): threads, mutexes, condition variables.
+* Jacob Sorber, *Introduction To Threads (pthreads) | C Programming Tutorial*: pthread basics.
+
+## AI usage
+
+- **ChatGPT**: explanations of concurrency concepts, algorithm design
+   suggestions, README review and generation of
+   `assets/Codexion_ Dining Philosophers.png`.
+- **Perplexity**: comparison of AddressSanitizer and ThreadSanitizer.
+- **Claude Code**: debugging, optimization and README rewording.

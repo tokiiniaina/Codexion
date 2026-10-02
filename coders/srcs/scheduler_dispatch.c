@@ -1,12 +1,16 @@
-#include "codexion.h"
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   scheduler_dispatch.c                               :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: tokinira <tokinira@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/09/29 08:39:21 by tokinira          #+#    #+#             */
+/*   Updated: 2026/10/02 22:11:15 by tokinira         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
 
-int	peek_request(t_priority_queue *queue, t_compile_request *request)
-{
-	if (queue->size == 0)
-		return (1);
-	*request = queue->requests[0];
-	return (0);
-}
+#include "codexion.h"
 
 static void	grant_permission(t_simulation_data *simulation, int coder_id)
 {
@@ -20,6 +24,35 @@ static void	grant_permission(t_simulation_data *simulation, int coder_id)
 		pthread_cond_signal(&coder->cond);
 	}
 	pthread_mutex_unlock(&simulation->state_mutex);
+}
+
+int	get_next_dongle_wakeup(t_simulation_data *simulation,
+		long *wakeup_time)
+{
+	long	candidate;
+	long	now;
+	int		i;
+	int		found;
+
+	now = get_time_ms();
+	i = 0;
+	found = 0;
+	while (i < simulation->config->number_of_coders)
+	{
+		if (pthread_mutex_trylock(&simulation->dongles[i].mutex) == 0)
+		{
+			candidate = simulation->dongles[i].available_at;
+			if (!simulation->dongles[i].is_reserved
+				&& candidate > now && (!found || candidate < *wakeup_time))
+			{
+				*wakeup_time = candidate;
+				found = 1;
+			}
+			pthread_mutex_unlock(&simulation->dongles[i].mutex);
+		}
+		i++;
+	}
+	return (found);
 }
 
 static int	try_dispatch_request(t_simulation_data *simulation,
@@ -38,17 +71,17 @@ static int	try_dispatch_request(t_simulation_data *simulation,
 int	drain_queue(t_simulation_data *simulation,
 		t_compile_request *pending)
 {
-	int					count;
+	int					pos;
 	t_compile_request	request;
 
-	count = 0;
+	pos = 0;
 	while (pop_request(&simulation->queue, &request,
 			simulation->config->scheduler) == 0)
 	{
-		pending[count] = request;
-		count++;
+		pending[pos] = request;
+		pos++;
 	}
-	return (count);
+	return (pos);
 }
 
 int	dispatch_pending(t_simulation_data *simulation,

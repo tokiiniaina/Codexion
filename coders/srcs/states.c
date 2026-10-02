@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   states.c                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: tokinira <tokinira@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/09/29 08:39:28 by tokinira          #+#    #+#             */
+/*   Updated: 2026/10/02 23:42:25 by tokinira         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 #include "codexion.h"
 
 int	is_simulation_stopped(t_simulation_data *simulation)
@@ -25,8 +37,12 @@ void	mark_coder_finished(t_simulation_data *simulation,
 int	get_compile_count(t_simulation_data *simulation,
 		t_coder_data *coder)
 {
-	(void)simulation;
-	return (coder->compile_count);
+	int	compile_count;
+
+	pthread_mutex_lock(&simulation->state_mutex);
+	compile_count = coder->compile_count;
+	pthread_mutex_unlock(&simulation->state_mutex);
+	return (compile_count);
 }
 
 int	enqueue_compile_request(t_coder_data *coder,

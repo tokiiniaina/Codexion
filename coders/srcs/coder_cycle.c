@@ -1,9 +1,21 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   coder_cycle.c                                      :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: tokinira <tokinira@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/09/29 08:38:45 by tokinira          #+#    #+#             */
+/*   Updated: 2026/10/02 23:42:25 by tokinira         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 #include "codexion.h"
 
-static int	 sleep_or_stop(t_simulation_data *simulation, int duration)
+static int	sleep_or_stop(t_simulation_data *simulation, int duration)
 {
-	long end_time;
-	long remaining;
+	long	end_time;
+	long	remaining;
 
 	end_time = get_time_ms() + duration;
 	while (!is_simulation_stopped(simulation))
@@ -45,6 +57,7 @@ int	finish_compile_cycle(t_coder_context *context)
 {
 	t_coder_data		*coder;
 	t_simulation_data	*sim;
+	int					finished;
 
 	coder = context->coder;
 	sim = context->simulation;
@@ -57,14 +70,10 @@ int	finish_compile_cycle(t_coder_context *context)
 		return (1);
 	pthread_mutex_lock(&sim->state_mutex);
 	coder->compile_count++;
+	finished = coder->compile_count
+		>= sim->config->number_of_compiles_required;
 	pthread_mutex_unlock(&sim->state_mutex);
-	pthread_mutex_lock(&sim->state_mutex);
-	if (coder->compile_count >= sim->config->number_of_compiles_required)
-	{
-		pthread_mutex_unlock(&sim->state_mutex);
+	if (finished)
 		mark_coder_finished(sim, coder);
-	}
-	else
-		pthread_mutex_unlock(&sim->state_mutex);
 	return (0);
 }

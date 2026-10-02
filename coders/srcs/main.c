@@ -1,4 +1,23 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   main.c                                             :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: tokinira <tokinira@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/09/29 08:39:12 by tokinira          #+#    #+#             */
+/*   Updated: 2026/09/29 08:51:25 by tokinira         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 #include "codexion.h"
+
+static char	*get_scheduler_name(t_scheduler scheduler)
+{
+	if (scheduler == SCHEDULER_FIFO)
+		return ("fifo");
+	return ("edf");
+}
 
 static void	print_config(t_simulation_config *config)
 {
@@ -9,7 +28,7 @@ static void	print_config(t_simulation_config *config)
 	printf("refactor: %d\n", config->time_to_refactor);
 	printf("required: %d\n", config->number_of_compiles_required);
 	printf("cooldown: %d\n", config->dongle_cooldown);
-	printf("scheduler: %d\n", config->scheduler);
+	printf("scheduler: %s\n", get_scheduler_name(config->scheduler));
 }
 
 static int	run_simulation(t_simulation_config *config)

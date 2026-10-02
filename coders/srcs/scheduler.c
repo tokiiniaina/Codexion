@@ -1,6 +1,16 @@
-#include "codexion.h"
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   scheduler.c                                        :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: tokinira <tokinira@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/09/29 08:39:23 by tokinira          #+#    #+#             */
+/*   Updated: 2026/10/02 22:11:15 by tokinira         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
 
-#define SCHEDULER_WAIT_MS 50
+#include "codexion.h"
 
 static int	wait_for_queue(t_simulation_data *simulation)
 {
@@ -18,10 +28,16 @@ static int	wait_for_queue(t_simulation_data *simulation)
 	return (0);
 }
 
-static void	set_scheduler_timeout(struct timespec *timeout)
+static void	set_scheduler_timeout(long wakeup_time,
+		struct timespec *timeout)
 {
+	long	remaining;
+
 	clock_gettime(CLOCK_REALTIME, timeout);
-	timeout->tv_nsec += SCHEDULER_WAIT_MS * 1000000L;
+	remaining = wakeup_time - get_time_ms();
+	if (remaining < 1)
+		remaining = 1;
+	timeout->tv_nsec += remaining * 1000000L;
 	if (timeout->tv_nsec >= 1000000000L)
 	{
 		timeout->tv_sec++;
@@ -32,13 +48,20 @@ static void	set_scheduler_timeout(struct timespec *timeout)
 static void	wait_for_retry(t_simulation_data *simulation)
 {
 	struct timespec	timeout;
+	long			wakeup_time;
 
 	pthread_mutex_lock(&simulation->queue_mutex);
 	if (!is_simulation_stopped(simulation))
 	{
-		set_scheduler_timeout(&timeout);
-		pthread_cond_timedwait(&simulation->queue_cond,
-			&simulation->queue_mutex, &timeout);
+		if (get_next_dongle_wakeup(simulation, &wakeup_time))
+		{
+			set_scheduler_timeout(wakeup_time, &timeout);
+			pthread_cond_timedwait(&simulation->queue_cond,
+				&simulation->queue_mutex, &timeout);
+		}
+		else
+			pthread_cond_wait(&simulation->queue_cond,
+				&simulation->queue_mutex);
 	}
 	pthread_mutex_unlock(&simulation->queue_mutex);
 }

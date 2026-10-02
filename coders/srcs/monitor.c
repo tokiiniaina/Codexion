@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   monitor.c                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: tokinira <tokinira@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/09/29 08:39:15 by tokinira          #+#    #+#             */
+/*   Updated: 2026/10/02 23:42:25 by tokinira         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 #include "codexion.h"
 
 static int	find_burned_out(t_simulation_data *simulation,
@@ -52,6 +64,6 @@ void	*monitor_routine(void *arg)
 	{
 		if (monitor_tick(simulation, get_time_ms()))
 			return (NULL);
-		usleep(1000);
+		usleep(500);
 	}
 }

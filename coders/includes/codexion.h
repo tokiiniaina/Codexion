@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   codexion.h                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: tokinira <tokinira@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/09/29 08:41:35 by tokinira          #+#    #+#             */
+/*   Updated: 2026/10/02 22:11:15 by tokinira         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 #ifndef CODEXION_H
 # define CODEXION_H
 
@@ -117,6 +129,8 @@ int		get_compile_count(t_simulation_data *simulation,
 int		enqueue_compile_request(t_coder_data *coder,
 			t_simulation_data *simulation);
 void	unlock_dongle(t_dongle_data *dongle, int cooldown);
+int		get_next_dongle_wakeup(t_simulation_data *simulation,
+			long *wakeup_time);
 void	get_coder_dongles(t_simulation_data *simulation,
 			int coder_id, int *first, int *second);
 int		reserve_dongles(t_simulation_data *simulation,
@@ -142,8 +156,6 @@ int		push_request(t_priority_queue *queue,
 			t_compile_request request, t_scheduler scheduler);
 int		pop_request(t_priority_queue *queue,
 			t_compile_request *request, t_scheduler scheduler);
-int		peek_request(t_priority_queue *queue,
-			t_compile_request *request);
 int		compare_requests(t_compile_request *first,
 			t_compile_request *second, t_scheduler scheduler);
 void	heapify_up(t_priority_queue *queue, int index,

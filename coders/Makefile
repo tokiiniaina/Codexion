@@ -27,10 +27,6 @@ OBJS = $(addprefix $(OBJS_DIR)/, $(SRCS:.c=.o))
 TSAN_OBJS = $(addprefix $(TSAN_OBJS_DIR)/, $(SRCS:.c=.o))
 ASAN_OBJS = $(addprefix $(ASAN_OBJS_DIR)/, $(SRCS:.c=.o))
 
-# ============================================================
-# COLORS
-# ============================================================
-
 GREEN   = \033[1;32m
 RED     = \033[1;31m
 YELLOW  = \033[1;33m
@@ -38,12 +34,6 @@ CYAN    = \033[1;36m
 MAGENTA = \033[1;35m
 ORANGE  = \033[38;5;208m
 RESET   = \033[0m
-
-# ============================================================
-# BANNERS
-# Chaque contexte (build simple / rebuild / tsan / retsan) a son
-# propre logo pour qu'on sache d'un coup d'oeil quel mode tourne.
-# ============================================================
 
 banner:
 	@printf "$(GREEN)"
@@ -100,10 +90,6 @@ banner_asan:
 	@printf "                [ ADDRESSANITIZER BUILD ]\n"
 	@printf "$(RESET)"
 
-# ============================================================
-# BUILD NORMAL
-# ============================================================
-
 all: banner $(NAME)
 
 $(NAME): $(OBJS)
@@ -121,10 +107,6 @@ $(OBJS_DIR):
 	@mkdir -p $(OBJS_DIR)
 
 
-# ============================================================
-# THREADSANITIZER
-# ============================================================
-
 tsan: banner_tsan $(TSAN_NAME)
 
 $(TSAN_NAME): $(TSAN_OBJS)
@@ -139,10 +121,6 @@ $(TSAN_OBJS_DIR)/%.o: $(SRCS_DIR)/%.c
 		(printf "$(RED)[error] ThreadSanitizer compilation failed: $< -> $@$(RESET)\n" >&2; exit 1)
 
 
-# ============================================================
-# ADDRESSSANITIZER
-# ============================================================
-
 asan: banner_asan $(ASAN_NAME)
 
 $(ASAN_NAME): $(ASAN_OBJS)
@@ -156,10 +134,6 @@ $(ASAN_OBJS_DIR)/%.o: $(SRCS_DIR)/%.c
 		printf "$(CYAN)[ok] ASAN object created: $@$(RESET)\n" || \
 		(printf "$(RED)[error] AddressSanitizer compilation failed: $< -> $@$(RESET)\n" >&2; exit 1)
 
-
-# ============================================================
-# CLEAN
-# ============================================================
 
 clean:
 	@rm -rf $(OBJS_DIR) && \
@@ -184,9 +158,5 @@ retsan: banner_retsan
 		printf "$(ORANGE)[ok] retsan completed: full ThreadSanitizer rebuild$(RESET)\n" || \
 		(printf "$(RED)[error] retsan failed: fclean or TSAN build failed$(RESET)\n" >&2; exit 1)
 
-
-# ============================================================
-# PHONY
-# ============================================================
 
 .PHONY: all clean fclean re tsan retsan asan banner banner_re banner_tsan banner_retsan banner_asan
