@@ -90,46 +90,60 @@ Each log line has this format:
 Possible events include `has taken a dongle`, `is compiling`, `is debugging`,
 `is refactoring` and `burned out`.
 
-## How it works
+## How the simulation runs
 
-Each coder runs in its own thread and follows this cycle:
+The simulation starts one monitor thread, one scheduler thread and one coder
+thread per coder. Each coder repeatedly follows this cycle:
 
 ```text
-wait for two dongles -> compile -> release dongles -> debug -> refactor
+publish request -> wait for permission -> take two dongles -> compile
+-> release dongles -> debug -> refactor
 ```
 
 ```mermaid
 flowchart TD
-    A[Start simulation] --> B[Coder threads run in parallel]
-    B --> C[Request two dongles]
-    C --> D[Scheduler selects FIFO or EDF]
-    D --> E{Two dongles available?}
-    E -- No --> F[Wait for dongles or cooldown]
-    F --> D
-    E -- Yes --> G[Compile while holding dongles]
-    G --> H[Release dongles]
-    H --> I[Debug]
-    I --> J[Refactor]
-    J --> K{More compilations needed?}
-    K -- Yes --> C
-    K -- No --> L[Coder finished]
-    B --> M[Monitor checks burnout and completion]
-    M --> N{Burnout or all coders finished?}
-    N -- No --> M
-    N -- Yes --> O[Stop simulation and join threads]
+  A[Initialize state and deadlines] --> B[Start monitor and scheduler]
+  B --> C[Start coder threads]
+  C --> D[Coder publishes a compile request]
+  D --> E[Scheduler orders requests: FIFO or EDF]
+  E --> F{Both dongles available?}
+  F -- No --> G[Keep request queued]
+  G --> H[Wait for release or cooldown expiry]
+  H --> E
+  F -- Yes --> I[Reserve both dongles and grant permission]
+  I --> J[Coder starts compilation]
+  J --> K[Update last_compile_start and deadline]
+  K --> L[Compile while holding both dongles]
+  L --> M[Release dongles and start cooldown]
+  M --> N[Debug]
+  N --> O[Refactor]
+  O --> P{Required count reached?}
+  P -- No --> D
+  P -- Yes --> Q[Mark coder finished]
+  C --> R[Monitor waits for next deadline]
+  R --> S{Burnout or all coders finished?}
+  S -- No --> R
+  S -- Yes --> T[Set stop flag, wake all threads, join them]
 ```
 
-The dongles are held only during compilation. After refactoring, the coder can
-request dongles again. Several coders can compile at the same time when they
-use different dongles.
+### Compile deadlines
 
-The scheduler grants requests using either `fifo` or `edf`. If the required
-dongles are unavailable, the coder waits. A released dongle can also remain
-unavailable until its cooldown ends.
+The monitor and coders share the deadline state through `state_mutex`:
 
-The burnout timer starts when a compilation starts and continues during the
-rest of the coder's cycle. The monitor stops the simulation when a coder burns
-out or when all coders have completed the required number of compilations.
+```text
+first compilation deadline = simulation_start_time + time_to_burnout
+next compilation deadline  = last_compile_start + time_to_burnout
+```
+
+`last_compile_start` is updated at the beginning of the effective compilation,
+not when the request is created, permission is granted or dongles are
+reserved. A coder burns out when `current_time >= deadline` and its next
+compilation has not started. The equality case is therefore inclusive.
+
+The scheduler and monitor use condition variables rather than busy polling.
+Several coders can compile simultaneously when their dongle pairs do not
+overlap. A coder with one dongle cannot compile; the single-coder case exits
+through the monitor's burnout path without blocking indefinitely.
 
 ## Architecture
 
@@ -219,7 +233,7 @@ codexion/
 
   * [`pthread_mutex_lock(3p)`](https://man7.org/linux/man-pages/man3/pthread_mutex_lock.3p.html): lock, unlock, trylock.
   * [`pthread_cond_timedwait(3p)`](https://man7.org/linux/man-pages/man3/pthread_cond_timedwait.3p.html): timed wait used by the scheduler.
-  * [`clock_gettime(2)`](https://man7.org/linux/man-pages/man2/clock_gettime.2.html): timestamps en millisecondes (CLOCK_MONOTONIC).
+  * [`clock_gettime(2)`](https://man7.org/linux/man-pages/man2/clock_gettime.2.html): timestamps et délais absolus en millisecondes (CLOCK_REALTIME).
 
   ### YouTube
 
