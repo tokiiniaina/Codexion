@@ -43,12 +43,10 @@ static int	run_simulation(t_simulation_config *config)
 	if (start_simulation(&simulation))
 	{
 		printf("Error: simulation start failed\n");
-		free_simulation(&simulation, config->number_of_coders,
-			config->number_of_coders);
+		free_simulation(&simulation);
 		return (1);
 	}
-	free_simulation(&simulation, config->number_of_coders,
-		config->number_of_coders);
+	free_simulation(&simulation);
 	return (0);
 }
 

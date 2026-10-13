@@ -14,9 +14,15 @@
 
 long	get_time_ms(void)
 {
-	struct timeval	current_time;
+	struct timespec	current_time;
 
-	gettimeofday(&current_time, NULL);
+	clock_gettime(CLOCK_REALTIME, &current_time);
 	return (current_time.tv_sec * 1000
-		+ current_time.tv_usec / 1000);
+		+ current_time.tv_nsec / 1000000);
+}
+
+void	set_abs_timeout(long target_ms, struct timespec *ts)
+{
+	ts->tv_sec = target_ms / 1000;
+	ts->tv_nsec = (target_ms % 1000) * 1000000L;
 }

@@ -1,4 +1,4 @@
-*This project was created as part of the 42 curriculum by tokinira.*
+*This project has been created as part of the 42 curriculum by tokinira.*
 
 # Codexion
 
@@ -58,9 +58,10 @@ Normal compilation uses:
     dongle_cooldown scheduler
 ```
 
-All numeric arguments must contain decimal digits and fit in an `int`. The
-number of coders must be at least `1`. The scheduler must be `fifo` or `edf`.
-Zero is accepted by the parser for duration and count parameters.
+All numeric arguments must contain decimal digits and fit in an `int`.
+`number_of_coders`, `time_to_burnout` and `number_of_compiles_required` must
+be at least `1`; `time_to_compile`, `time_to_debug`, `time_to_refactor` and
+`dongle_cooldown` may be `0`. The scheduler must be `fifo` or `edf`.
 
 | Argument | Meaning |
 | --- | --- |
@@ -89,71 +90,55 @@ Each log line has this format:
 Possible events include `has taken a dongle`, `is compiling`, `is debugging`,
 `is refactoring` and `burned out`.
 
-## Scheduling model
+## How it works
 
-Each coder requests its two neighbouring dongles. The scheduler keeps pending
-requests in a custom binary heap and only grants permission after reserving
-both dongles.
-
-Dongles are considered in a consistent order. Reservation uses
-`pthread_mutex_trylock`; if the second dongle cannot be reserved, the first
-reservation is rolled back. This avoids circular wait and lets independent
-coders compile concurrently.
-
-After compilation, both dongles are released with an `available_at` timestamp.
-The scheduler waits on its condition variable and, when necessary, sleeps
-until the next dongle cooldown expires. New requests, dongle releases and
-termination wake it earlier.
-
-For EDF, a request deadline is calculated from the coder's last compilation
-start:
+Each coder runs in its own thread and follows this cycle:
 
 ```text
-deadline = last_compile_start + time_to_burnout
+wait for two dongles -> compile -> release dongles -> debug -> refactor
 ```
-
-Arrival order is used as the tie-breaker when two EDF deadlines are equal.
 
 ```mermaid
 flowchart TD
-  A[Initialize state and synchronization] --> B[Start monitor scheduler and coders]
-  B --> C[Coder enqueues compile request]
-  C --> D[Scheduler selects FIFO or EDF request]
-  D --> E{Two dongles available?}
-  E -- No --> F[Keep request in heap and wait for signal or timeout]
-  F --> D
-  E -- Yes --> G[Grant coder permission]
-  G --> H[Compile while holding dongles]
-  H --> I[Release dongles with cooldown]
-  I --> J[Debug and refactor]
-  J --> C
-  B --> K[Monitor checks burnout and completion]
-  K --> L[Wake threads and stop simulation]
-  L --> M[Join threads and clean resources]
+    A[Start simulation] --> B[Coder threads run in parallel]
+    B --> C[Request two dongles]
+    C --> D[Scheduler selects FIFO or EDF]
+    D --> E{Two dongles available?}
+    E -- No --> F[Wait for dongles or cooldown]
+    F --> D
+    E -- Yes --> G[Compile while holding dongles]
+    G --> H[Release dongles]
+    H --> I[Debug]
+    I --> J[Refactor]
+    J --> K{More compilations needed?}
+    K -- Yes --> C
+    K -- No --> L[Coder finished]
+    B --> M[Monitor checks burnout and completion]
+    M --> N{Burnout or all coders finished?}
+    N -- No --> M
+    N -- Yes --> O[Stop simulation and join threads]
 ```
 
-## Termination
+The dongles are held only during compilation. After refactoring, the coder can
+request dongles again. Several coders can compile at the same time when they
+use different dongles.
 
-The monitor checks the shared state every 500 microseconds. It stops the
-simulation when:
+The scheduler grants requests using either `fifo` or `edf`. If the required
+dongles are unavailable, the coder waits. A released dongle can also remain
+unavailable until its cooldown ends.
 
-- a coder reaches its burnout limit since the last compilation start; or
-- every coder has completed the required number of compilations.
-
-Termination sets the shared stop flag and wakes coder and scheduler condition
-variables. The main thread then joins the worker threads and destroys the
-allocated resources and synchronization primitives.
-
-With one coder, only one dongle exists, so a compilation requiring two dongles
-cannot start. The coder waits until the monitor stops the simulation.
+The burnout timer starts when a compilation starts and continues during the
+rest of the coder's cycle. The monitor stops the simulation when a coder burns
+out or when all coders have completed the required number of compilations.
 
 ## Architecture
 
 | File or directory | Responsibility |
 | --- | --- |
 | `main.c` | Entry point and simulation startup |
-| `parsing.c` | Numeric and scheduler validation |
+| `parsing.c` | Numeric, range and scheduler validation |
 | `init.c`, `cleanup.c` | Resource initialization and destruction |
+| `init_sync.c` | Mutex, condition variable and queue initialization |
 | `simulation.c` | Worker thread creation and joining |
 | `coder.c` | Coder thread lifecycle |
 | `coder_acquire.c` | Request waiting and dongle acquisition |
@@ -186,7 +171,7 @@ between runs because the simulation is concurrent.
 ## Project structure
 
 ```text
-coders/
+codexion/
 ├── Makefile
 ├── README.md
 ├── assets/
@@ -200,6 +185,7 @@ coders/
     ├── simulation.c
     ├── time.c
     ├── init.c
+    ├── init_sync.c
     ├── cleanup.c
     ├── coder.c
     ├── coder_acquire.c
@@ -214,3 +200,34 @@ coders/
         ├── priority_queue.c
         └── priority_queue_heap.c
 ```
+
+## Resources
+
+  ### GeeksforGeeks
+
+  * [Mutex lock for Linux thread synchronization](https://www.geeksforgeeks.org/mutex-lock-for-linux-thread-synchronization/): mutex, lock/unlock in C.
+  * [Condition variables: wait and signal](https://www.geeksforgeeks.org/condition-wait-signal-multi-threading/): `pthread_cond_wait` / `pthread_cond_signal`.
+  * [Dining philosophers problem](https://www.geeksforgeeks.org/dining-philosophers-problem/): original problem and solutions.
+  * [Binary heap](https://www.geeksforgeeks.org/binary-heap/): data structure behind the priority queue.
+
+  ### Wikipedia
+
+  * [Deadlock](<https://en.wikipedia.org/wiki/Deadlock_(computer_science)>): the four Coffman conditions.
+  * [Earliest deadline first scheduling](https://en.wikipedia.org/wiki/Earliest_deadline_first_scheduling): basis of the EDF policy.
+
+  ### Man pages
+
+  * [`pthread_mutex_lock(3p)`](https://man7.org/linux/man-pages/man3/pthread_mutex_lock.3p.html): lock, unlock, trylock.
+  * [`pthread_cond_timedwait(3p)`](https://man7.org/linux/man-pages/man3/pthread_cond_timedwait.3p.html): timed wait used by the scheduler.
+  * [`clock_gettime(2)`](https://man7.org/linux/man-pages/man2/clock_gettime.2.html): timestamps en millisecondes (CLOCK_MONOTONIC).
+
+  ### YouTube
+
+  * CodeVault, *Unix Threads in C* (playlist): threads, mutexes, condition variables.
+  * Jacob Sorber, *Introduction To Threads (pthreads) | C Programming Tutorial*: pthread basics.
+
+  ### AI usage
+
+  * **ChatGPT**: explanations of concurrency concepts, algorithm design suggestions, README review and generation of `assets/Codexion_ Dining Philosophers.png`.
+  * **Perplexity**: comparison of AddressSanitizer and ThreadSanitizer.
+  * **Claude Code**: debugging, optimization and README rewording.

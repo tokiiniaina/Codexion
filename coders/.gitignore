@@ -1,5 +1,10 @@
 # Executables & Compilation Artifacts
 codexion
+codexion_asan
+codexion_tsan
+objs/
+objs_asan/
+objs_tsan/
 *.o
 *.a
 *.so

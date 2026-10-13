@@ -20,7 +20,8 @@ static void	init_contexts(t_simulation_data *sim, t_coder_context *ctx)
 	i = -1;
 	while (++i < sim->config->number_of_coders)
 	{
-		sim->coders[i].last_compile_start = sim->start_time;
+		sim->coders[i].burnout_deadline = sim->start_time
+			+ sim->config->time_to_burnout;
 		ctx[i].coder = &sim->coders[i];
 		ctx[i].simulation = sim;
 	}

@@ -12,18 +12,12 @@
 
 #include "codexion.h"
 
-int	compare_requests(t_compile_request *first,
+static int	compare_requests(t_compile_request *first,
 		t_compile_request *second, t_scheduler scheduler)
 {
-	if (scheduler == SCHEDULER_FIFO)
-		return (first->arrival_order < second->arrival_order);
-	if (scheduler == SCHEDULER_EDF)
-	{
-		if (first->deadline != second->deadline)
-			return (first->deadline < second->deadline);
-		return (first->arrival_order < second->arrival_order);
-	}
-	return (0);
+	if (scheduler == SCHEDULER_EDF && first->deadline != second->deadline)
+		return (first->deadline < second->deadline);
+	return (first->arrival_order < second->arrival_order);
 }
 
 void	heapify_up(t_priority_queue *queue, int index,

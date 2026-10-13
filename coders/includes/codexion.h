@@ -18,7 +18,6 @@
 # include <stdio.h>
 # include <stdlib.h>
 # include <string.h>
-# include <sys/time.h>
 # include <time.h>
 # include <unistd.h>
 
@@ -59,11 +58,11 @@ typedef struct s_coder_data
 	int				id;
 	int				compile_count;
 	long			last_compile_start;
+	long			burnout_deadline;
 	int				is_finished;
-	int				color_index;
 
 	pthread_cond_t	cond;
-	int				has_permission;	
+	int				has_permission;
 }	t_coder_data;
 
 typedef struct s_dongle_data
@@ -85,6 +84,8 @@ typedef struct s_simulation_data
 	int					finished_coders;
 	pthread_t			monitor_thread;
 
+	int					inited_coders;
+	int					inited_dongles;
 	pthread_mutex_t		state_mutex;
 
 	int					stop_simulation;
@@ -94,10 +95,12 @@ typedef struct s_simulation_data
 	pthread_mutex_t		queue_mutex;
 	pthread_cond_t		queue_cond;
 
+	pthread_cond_t		monitor_cond;
+
+
 	pthread_t			scheduler_thread;
 
 	int					request_counter;
-	int					next_color_index;
 
 	pthread_mutex_t		log_mutex;
 }	t_simulation_data;
@@ -109,17 +112,15 @@ typedef struct s_coder_context
 }	t_coder_context;
 
 void	wake_everyone(t_simulation_data *simulation);
-void	wake_everyone_locked(t_simulation_data *simulation);
 
-int		parse_positive_number(char *value, int *result);
 int		parse_arguments(char **argv, t_simulation_config *config);
 
 int		init_simulation(t_simulation_data *simulation,
 			t_simulation_config *config);
+int		init_sync_primitives(t_simulation_data *simulation,
+			t_simulation_config *config);
 int		start_simulation(t_simulation_data *simulation);
-void	free_simulation(t_simulation_data *simulation,
-			int mutex_count, int cond_count);
-void	destroy_dongle_mutexes(t_dongle_data *dongles, int count);
+void	free_simulation(t_simulation_data *simulation);
 
 int		is_simulation_stopped(t_simulation_data *simulation);
 void	mark_coder_finished(t_simulation_data *simulation,
@@ -129,6 +130,7 @@ int		get_compile_count(t_simulation_data *simulation,
 int		enqueue_compile_request(t_coder_data *coder,
 			t_simulation_data *simulation);
 void	unlock_dongle(t_dongle_data *dongle, int cooldown);
+void	cancel_dongles(t_simulation_data *simulation, int first, int second);
 int		get_next_dongle_wakeup(t_simulation_data *simulation,
 			long *wakeup_time);
 void	get_coder_dongles(t_simulation_data *simulation,
@@ -137,6 +139,8 @@ int		reserve_dongles(t_simulation_data *simulation,
 			int first, int second);
 void	log_event(t_simulation_data *simulation, int coder_id,
 			char *message);
+int		dispatch_request(t_simulation_data *simulation,
+			t_compile_request *request);
 int		drain_queue(t_simulation_data *simulation,
 			t_compile_request *pending);
 int		dispatch_pending(t_simulation_data *simulation,
@@ -156,13 +160,12 @@ int		push_request(t_priority_queue *queue,
 			t_compile_request request, t_scheduler scheduler);
 int		pop_request(t_priority_queue *queue,
 			t_compile_request *request, t_scheduler scheduler);
-int		compare_requests(t_compile_request *first,
-			t_compile_request *second, t_scheduler scheduler);
 void	heapify_up(t_priority_queue *queue, int index,
 			t_scheduler scheduler);
 void	heapify_down(t_priority_queue *queue, int index,
 			t_scheduler scheduler);
 
 long	get_time_ms(void);
+void	set_abs_timeout(long target_ms, struct timespec *ts);
 
 #endif

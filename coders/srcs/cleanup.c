@@ -24,7 +24,7 @@ static void	destroy_coder_conditions(t_coder_data *coders, int count)
 	}
 }
 
-void	destroy_dongle_mutexes(t_dongle_data *dongles, int count)
+static void	destroy_dongle_mutexes(t_dongle_data *dongles, int count)
 {
 	int	i;
 
@@ -36,14 +36,15 @@ void	destroy_dongle_mutexes(t_dongle_data *dongles, int count)
 	}
 }
 
-void	free_simulation(t_simulation_data *simulation, int mutex_count,
-		int cond_count)
+void	free_simulation(t_simulation_data *simulation)
 {
 	if (simulation->coders)
 	{
-		destroy_coder_conditions(simulation->coders, cond_count);
+		destroy_coder_conditions(simulation->coders,
+			simulation->inited_coders);
 		free(simulation->coders);
 	}
+	pthread_cond_destroy(&simulation->monitor_cond);
 	pthread_cond_destroy(&simulation->queue_cond);
 	pthread_mutex_destroy(&simulation->queue_mutex);
 	pthread_mutex_destroy(&simulation->state_mutex);
@@ -52,7 +53,8 @@ void	free_simulation(t_simulation_data *simulation, int mutex_count,
 		free(simulation->queue.requests);
 	if (simulation->dongles)
 	{
-		destroy_dongle_mutexes(simulation->dongles, mutex_count);
+		destroy_dongle_mutexes(simulation->dongles,
+			simulation->inited_dongles);
 		free(simulation->dongles);
 	}
 	if (simulation->threads)

@@ -12,23 +12,23 @@
 
 #include "codexion.h"
 
-static int	sleep_or_stop(t_simulation_data *simulation, int duration)
+static int	sleep_or_stop(t_simulation_data *simulation,
+		t_coder_data *coder, int duration)
 {
-	long	end_time;
-	long	remaining;
+	long			end_time;
+	struct timespec	ts;
+	int				stopped;
 
 	end_time = get_time_ms() + duration;
-	while (!is_simulation_stopped(simulation))
+	pthread_mutex_lock(&simulation->state_mutex);
+	while (!simulation->stop_simulation && get_time_ms() < end_time)
 	{
-		remaining = end_time - get_time_ms();
-		if (remaining <= 0)
-			return (0);
-		if (remaining > 1)
-			usleep(1000);
-		else
-			usleep(remaining * 1000);
+		set_abs_timeout(end_time, &ts);
+		pthread_cond_timedwait(&coder->cond, &simulation->state_mutex, &ts);
 	}
-	return (1);
+	stopped = simulation->stop_simulation;
+	pthread_mutex_unlock(&simulation->state_mutex);
+	return (stopped);
 }
 
 int	compile_coder(t_coder_context *context)
@@ -38,9 +38,12 @@ int	compile_coder(t_coder_context *context)
 	coder = context->coder;
 	pthread_mutex_lock(&context->simulation->state_mutex);
 	coder->last_compile_start = get_time_ms();
+	coder->burnout_deadline = coder->last_compile_start
+		+ context->simulation->config->time_to_burnout;
+	pthread_cond_signal(&context->simulation->monitor_cond);
 	pthread_mutex_unlock(&context->simulation->state_mutex);
 	log_event(context->simulation, coder->id, "is compiling");
-	return (sleep_or_stop(context->simulation,
+	return (sleep_or_stop(context->simulation, coder,
 			context->simulation->config->time_to_compile));
 }
 
@@ -50,7 +53,7 @@ static int	coder_step(t_simulation_data *sim, t_coder_data *coder,
 	if (is_simulation_stopped(sim))
 		return (1);
 	log_event(sim, coder->id, msg);
-	return (sleep_or_stop(sim, duration));
+	return (sleep_or_stop(sim, coder, duration));
 }
 
 int	finish_compile_cycle(t_coder_context *context)
@@ -72,6 +75,7 @@ int	finish_compile_cycle(t_coder_context *context)
 	coder->compile_count++;
 	finished = coder->compile_count
 		>= sim->config->number_of_compiles_required;
+	pthread_cond_signal(&sim->monitor_cond);
 	pthread_mutex_unlock(&sim->state_mutex);
 	if (finished)
 		mark_coder_finished(sim, coder);

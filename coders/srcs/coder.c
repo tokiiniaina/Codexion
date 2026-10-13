@@ -31,6 +31,21 @@ static int	run_coder_task(t_coder_context *context, int first, int second)
 	return (0);
 }
 
+static void	*run_lonely_coder(t_coder_context *context)
+{
+	t_simulation_data	*simulation;
+	t_coder_data		*coder;
+
+	simulation = context->simulation;
+	coder = context->coder;
+	log_event(simulation, coder->id, "has taken a dongle");
+	pthread_mutex_lock(&simulation->state_mutex);
+	while (!simulation->stop_simulation)
+		pthread_cond_wait(&coder->cond, &simulation->state_mutex);
+	pthread_mutex_unlock(&simulation->state_mutex);
+	return (NULL);
+}
+
 void	*coder_routine(void *arg)
 {
 	t_coder_context	*context;
@@ -47,6 +62,8 @@ void	*coder_routine(void *arg)
 		mark_coder_finished(context->simulation, coder);
 		return (NULL);
 	}
+	if (context->simulation->config->number_of_coders == 1)
+		return (run_lonely_coder(context));
 	while (!is_simulation_stopped(context->simulation)
 		&& get_compile_count(context->simulation, coder)
 		< context->simulation->config->number_of_compiles_required)

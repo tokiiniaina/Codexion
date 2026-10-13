@@ -12,7 +12,7 @@
 
 #include "codexion.h"
 
-int	parse_positive_number(char *value, int *result)
+static int	parse_number(char *value, int *result)
 {
 	int	i;
 	int	number;
@@ -47,19 +47,28 @@ static int	parse_scheduler(char *value, t_scheduler *scheduler)
 
 static int	parse_config_numbers(char **argv, t_simulation_config *config)
 {
-	if (parse_positive_number(argv[1], &config->number_of_coders))
+	if (parse_number(argv[1], &config->number_of_coders))
 		return (1);
-	if (parse_positive_number(argv[2], &config->time_to_burnout))
+	if (parse_number(argv[2], &config->time_to_burnout))
 		return (1);
-	if (parse_positive_number(argv[3], &config->time_to_compile))
+	if (parse_number(argv[3], &config->time_to_compile))
 		return (1);
-	if (parse_positive_number(argv[4], &config->time_to_debug))
+	if (parse_number(argv[4], &config->time_to_debug))
 		return (1);
-	if (parse_positive_number(argv[5], &config->time_to_refactor))
+	if (parse_number(argv[5], &config->time_to_refactor))
 		return (1);
-	if (parse_positive_number(argv[6], &config->number_of_compiles_required))
+	if (parse_number(argv[6], &config->number_of_compiles_required))
 		return (1);
-	if (parse_positive_number(argv[7], &config->dongle_cooldown))
+	if (parse_number(argv[7], &config->dongle_cooldown))
+		return (1);
+	return (0);
+}
+
+static int	check_ranges(t_simulation_config *config)
+{
+	if (config->number_of_coders < 1
+		|| config->time_to_burnout < 1
+		|| config->number_of_compiles_required < 1)
 		return (1);
 	return (0);
 }
@@ -70,7 +79,7 @@ int	parse_arguments(char **argv, t_simulation_config *config)
 		return (1);
 	if (parse_scheduler(argv[8], &config->scheduler))
 		return (1);
-	if (config->number_of_coders < 1)
+	if (check_ranges(config))
 		return (1);
 	return (0);
 }

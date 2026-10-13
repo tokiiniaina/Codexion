@@ -6,24 +6,27 @@
 /*   By: tokinira <tokinira@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/29 08:39:21 by tokinira          #+#    #+#             */
-/*   Updated: 2026/10/02 22:11:15 by tokinira         ###   ########.fr       */
+/*   Updated: 2026/10/13 00:00:00 by tokinira         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "codexion.h"
 
-static void	grant_permission(t_simulation_data *simulation, int coder_id)
+static int	grant_permission(t_simulation_data *simulation, int coder_id)
 {
 	t_coder_data	*coder;
+	int				granted;
 
 	coder = &simulation->coders[coder_id];
 	pthread_mutex_lock(&simulation->state_mutex);
-	if (!simulation->stop_simulation)
+	granted = !simulation->stop_simulation;
+	if (granted)
 	{
 		coder->has_permission = 1;
 		pthread_cond_signal(&coder->cond);
 	}
 	pthread_mutex_unlock(&simulation->state_mutex);
+	return (granted);
 }
 
 int	get_next_dongle_wakeup(t_simulation_data *simulation,
@@ -39,23 +42,21 @@ int	get_next_dongle_wakeup(t_simulation_data *simulation,
 	found = 0;
 	while (i < simulation->config->number_of_coders)
 	{
-		if (pthread_mutex_trylock(&simulation->dongles[i].mutex) == 0)
+		pthread_mutex_lock(&simulation->dongles[i].mutex);
+		candidate = simulation->dongles[i].available_at;
+		if (!simulation->dongles[i].is_reserved && candidate > now
+			&& (!found || candidate < *wakeup_time))
 		{
-			candidate = simulation->dongles[i].available_at;
-			if (!simulation->dongles[i].is_reserved
-				&& candidate > now && (!found || candidate < *wakeup_time))
-			{
-				*wakeup_time = candidate;
-				found = 1;
-			}
-			pthread_mutex_unlock(&simulation->dongles[i].mutex);
+			*wakeup_time = candidate;
+			found = 1;
 		}
+		pthread_mutex_unlock(&simulation->dongles[i].mutex);
 		i++;
 	}
 	return (found);
 }
 
-static int	try_dispatch_request(t_simulation_data *simulation,
+int	dispatch_request(t_simulation_data *simulation,
 		t_compile_request *request)
 {
 	int	first;
@@ -64,7 +65,11 @@ static int	try_dispatch_request(t_simulation_data *simulation,
 	get_coder_dongles(simulation, request->coder_id, &first, &second);
 	if (!reserve_dongles(simulation, first, second))
 		return (0);
-	grant_permission(simulation, request->coder_id);
+	if (!grant_permission(simulation, request->coder_id))
+	{
+		cancel_dongles(simulation, first, second);
+		return (0);
+	}
 	return (1);
 }
 
@@ -94,13 +99,19 @@ int	dispatch_pending(t_simulation_data *simulation,
 	dispatched = 0;
 	while (i < pending_count)
 	{
-		if (try_dispatch_request(simulation, &pending[i]))
+		if (dispatch_request(simulation, &pending[i]))
 			dispatched++;
-		else
+		else if (!is_simulation_stopped(simulation))
 		{
 			pthread_mutex_lock(&simulation->queue_mutex);
-			push_request(&simulation->queue, pending[i],
-				simulation->config->scheduler);
+			if (push_request(&simulation->queue, pending[i],
+					simulation->config->scheduler) != 0)
+			{
+				pthread_mutex_unlock(&simulation->queue_mutex);
+				wake_everyone(simulation);
+				i++;
+				continue ;
+			}
 			pthread_mutex_unlock(&simulation->queue_mutex);
 		}
 		i++;

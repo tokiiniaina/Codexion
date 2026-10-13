@@ -30,6 +30,7 @@ void	mark_coder_finished(t_simulation_data *simulation,
 	{
 		coder->is_finished = 1;
 		simulation->finished_coders++;
+		pthread_cond_signal(&simulation->monitor_cond);
 	}
 	pthread_mutex_unlock(&simulation->state_mutex);
 }
@@ -49,14 +50,13 @@ int	enqueue_compile_request(t_coder_data *coder,
 		t_simulation_data *simulation)
 {
 	t_compile_request	request;
-	long				last_compile_start;
+	long				burnout_deadline;
 
 	pthread_mutex_lock(&simulation->state_mutex);
-	last_compile_start = coder->last_compile_start;
+	burnout_deadline = coder->burnout_deadline;
 	pthread_mutex_unlock(&simulation->state_mutex);
 	request.coder_id = coder->id;
-	request.deadline = last_compile_start
-		+ simulation->config->time_to_burnout;
+	request.deadline = burnout_deadline;
 	pthread_mutex_lock(&simulation->queue_mutex);
 	request.arrival_order = simulation->request_counter;
 	simulation->request_counter++;
@@ -64,6 +64,7 @@ int	enqueue_compile_request(t_coder_data *coder,
 			simulation->config->scheduler) != 0)
 	{
 		pthread_mutex_unlock(&simulation->queue_mutex);
+		wake_everyone(simulation);
 		return (1);
 	}
 	pthread_cond_signal(&simulation->queue_cond);

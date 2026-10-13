@@ -17,16 +17,17 @@ void	log_event(t_simulation_data *simulation, int coder_id, char *message)
 	long	timestamp;
 
 	timestamp = get_time_ms() - simulation->start_time;
-	if (strcmp(message, "burned out") == 0)
+	pthread_mutex_lock(&simulation->log_mutex);
+	pthread_mutex_lock(&simulation->state_mutex);
+	if (!simulation->stop_simulation
+		|| strcmp(message, "burned out") == 0)
 	{
-		pthread_mutex_lock(&simulation->log_mutex);
-		printf("\033[38;5;196m%ld %d %s\033[0m\n",
-			timestamp, coder_id + 1, message);
+		if (strcmp(message, "burned out") == 0)
+			printf("\033[38;5;196m%ld %d %s\033[0m\n",
+				timestamp, coder_id + 1, message);
+		else
+			printf("%ld %d %s\n", timestamp, coder_id + 1, message);
 	}
-	else
-	{
-		pthread_mutex_lock(&simulation->log_mutex);
-		printf("%ld %d %s\n", timestamp, coder_id + 1, message);
-	}
+	pthread_mutex_unlock(&simulation->state_mutex);
 	pthread_mutex_unlock(&simulation->log_mutex);
 }
